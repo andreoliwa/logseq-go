@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/aholstenson/logseq-go/content"
-	"github.com/aholstenson/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/internal/markdown"
 )
 
 type PageType int

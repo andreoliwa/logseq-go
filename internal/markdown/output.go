@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/aholstenson/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/content"
 )
 
 var urlRegexp = regexp.MustCompile(`^(?:http|https|ftp)://[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-z]+(?::\d+)?(?:[/#?][-a-zA-Z0-9@:%_+.~#$!?&/=\(\);,'">\^{}\[\]` + "`" + `]*)?`)

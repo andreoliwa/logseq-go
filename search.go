@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/aholstenson/logseq-go/content"
-	"github.com/aholstenson/logseq-go/internal/indexing"
+	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/internal/indexing"
 )
 
 // SearchResults is a result set from a search.

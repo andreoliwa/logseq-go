@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aholstenson/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/content"
 )
 
 type Index interface {

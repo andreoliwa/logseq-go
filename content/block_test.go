@@ -1,8 +1,8 @@
 package content_test
 
 import (
-	"github.com/aholstenson/logseq-go/content"
-	. "github.com/aholstenson/logseq-go/internal/tests"
+	"github.com/andreoliwa/logseq-go/content"
+	. "github.com/andreoliwa/logseq-go/internal/tests"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

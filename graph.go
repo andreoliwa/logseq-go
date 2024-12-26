@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aholstenson/logseq-go/content"
-	"github.com/aholstenson/logseq-go/internal/indexing"
-	"github.com/aholstenson/logseq-go/internal/utils"
+	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/internal/indexing"
+	"github.com/andreoliwa/logseq-go/internal/utils"
 	"github.com/fsnotify/fsnotify"
 )
 

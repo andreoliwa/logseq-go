@@ -1,4 +1,4 @@
-module github.com/aholstenson/logseq-go
+module github.com/andreoliwa/logseq-go
 
 go 1.20
 
