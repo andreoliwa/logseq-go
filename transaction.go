@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/andreoliwa/logseq-go/content"
@@ -55,6 +56,27 @@ func (t *Transaction) OpenPage(title string) (Page, error) {
 	}
 
 	page, err = t.graph.OpenPage(title)
+	if err != nil {
+		return nil, err
+	}
+
+	t.openedPages[path] = page
+	return page, nil
+}
+
+// OpenViaPath opens a page or journal via the path to the file, without knowing if it's a journal or page.
+func (t *Transaction) OpenViaPath(path string) (Page, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	page, ok := t.openedPages[abs].(Page)
+	if ok {
+		return page, nil
+	}
+
+	page, err = t.graph.OpenViaPath(path)
 	if err != nil {
 		return nil, err
 	}
