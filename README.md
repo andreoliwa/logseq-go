@@ -6,6 +6,8 @@ with support for reading and modifying journals and pages.
 ⚠️ **Note:** This library is still in early development, it may destroy your data
 when pages are modified. Please open issues if you find any bugs.
 
+[![codecov](https://codecov.io/github/andreoliwa/logseq-go/graph/badge.svg?token=57MKPZ2UZD)](https://codecov.io/github/andreoliwa/logseq-go)
+
 ## Features
 
 - Read and write journals and pages
