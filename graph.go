@@ -111,9 +111,10 @@ func (g *Graph) NewTransaction() *Transaction {
 	return newTransaction(g)
 }
 
-// Journal returns a read-only version of the journal page for the given date.
+// OpenJournal returns a read-only version of the journal page for the given date.
 func (g *Graph) OpenJournal(date time.Time) (Page, error) {
-	date = date.Local().Truncate(24 * time.Hour)
+	// .Truncate(24 * time.Hour) doesn't work s expected every time (e.g. right after midnight)
+	date = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 
 	path, err := g.journalPath(date)
 	if err != nil {
