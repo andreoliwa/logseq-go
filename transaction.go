@@ -25,7 +25,7 @@ func newTransaction(graph *Graph) *Transaction {
 }
 
 func (t *Transaction) OpenJournal(date time.Time) (Page, error) {
-	path, err := t.graph.journalPath(date)
+	path, err := t.graph.JournalPath(date)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,9 @@
 package utils
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 var jsDateKeys = []string{
 	"yyyy",
@@ -51,4 +54,10 @@ func ConvertDateFormat(jsDateFormat string) string {
 	}
 
 	return goDateFormat
+}
+
+// TruncateDate truncates the time to the beginning of the day, to be used as a journal date.
+func TruncateDate(date time.Time) time.Time {
+	// .Truncate(24 * time.Hour) doesn't work s expected every time (e.g. right after midnight)
+	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 }

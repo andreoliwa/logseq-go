@@ -113,10 +113,9 @@ func (g *Graph) NewTransaction() *Transaction {
 
 // OpenJournal returns a read-only version of the journal page for the given date.
 func (g *Graph) OpenJournal(date time.Time) (Page, error) {
-	// .Truncate(24 * time.Hour) doesn't work s expected every time (e.g. right after midnight)
-	date = time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	date = utils.TruncateDate(date)
 
-	path, err := g.journalPath(date)
+	path, err := g.JournalPath(date)
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +130,8 @@ func (g *Graph) OpenJournal(date time.Time) (Page, error) {
 	return openOrCreatePage(path, PageTypeJournal, title, date, templatePath)
 }
 
-func (g *Graph) journalPath(date time.Time) (string, error) {
-	filename := date.Format(g.journalNameFormat) + ".md"
+func (g *Graph) JournalPath(date time.Time) (string, error) {
+	filename := utils.TruncateDate(date).Format(g.journalNameFormat) + ".md"
 	return filepath.Join(g.directory, g.config.JournalsDir, filename), nil
 }
 
