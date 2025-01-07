@@ -235,7 +235,9 @@ func (w *Output) writeChildren(node content.HasChildren) error {
 }
 
 func (w *Output) writeText(node *content.Text) error {
-	err := w.write(node.Value, EscapePotentialMarkdown)
+	// TODO: this breaks some tests but it's the behavior I expect in my Logseq Markdown so far...
+	//  I'll keep testing it without "EscapePotentialMarkdown"
+	err := w.write(node.Value, EscapeNone)
 	if err != nil {
 		return err
 	}
