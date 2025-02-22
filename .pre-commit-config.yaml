@@ -20,7 +20,7 @@ repos:
       - id: toml-sort-fix
         exclude: '.*\.lock$'
   - repo: https://github.com/google/keep-sorted
-    rev: v0.5.1
+    rev: v0.6.0
     hooks:
       - id: keep-sorted
   - repo: https://github.com/pre-commit/mirrors-prettier
@@ -29,7 +29,11 @@ repos:
       - id: prettier
         stages:
           - pre-commit
+        args:
+          # So it doesn't fail when I'm trying to commit only Markdown files in the testdata dir
+          # https://prettier.io/docs/cli#--no-error-on-unmatched-pattern
+          - --no-error-on-unmatched-pattern
   - repo: https://github.com/mxr/sync-pre-commit-deps
-    rev: v0.0.2
+    rev: v0.0.3
     hooks:
       - id: sync-pre-commit-deps

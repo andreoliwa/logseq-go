@@ -1,0 +1,3 @@
+- Later or never: if a marker is not uppercase, it is not a marker, it's just a line of text, don't touch it.
+- Todo mundo ("everybody" in Portuguese and Spanish)
+- Now it's time to leave this marker untouched
