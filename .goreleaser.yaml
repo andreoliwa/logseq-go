@@ -10,12 +10,6 @@ before:
     - go generate ./...
 
 builds:
-  - env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - windows
-      - darwin
   # Use this for a library https://goreleaser.com/errors/no-main/
   - skip: true
 
