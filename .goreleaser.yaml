@@ -16,6 +16,8 @@ builds:
       - linux
       - windows
       - darwin
+  # Use this for a library https://goreleaser.com/errors/no-main/
+  - skip: true
 
 archives:
   - formats: ["tar.gz"]
