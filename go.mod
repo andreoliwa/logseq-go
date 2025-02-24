@@ -2,6 +2,8 @@ module github.com/andreoliwa/logseq-go
 
 go 1.20
 
+retract v1.0.0 // This version is invalid, the package is still experimental. It was published by default by semantic-release due to lack of Git tags.
+
 require (
 	github.com/blugelabs/bluge v0.2.2
 	github.com/fsnotify/fsnotify v1.7.0
