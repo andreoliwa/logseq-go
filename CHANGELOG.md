@@ -1,3 +1,9 @@
+## [0.1.2](https://github.com/andreoliwa/logseq-go/compare/v0.1.1...v0.1.2) (2025-02-24)
+
+### Bug Fixes
+
+- bump all package versions ([48dc192](https://github.com/andreoliwa/logseq-go/commit/48dc19275416ef0c35ba0a8304b30a3f9192629e))
+
 ## [0.1.1](https://github.com/andreoliwa/logseq-go/compare/v0.1.0...v0.1.1) (2025-02-24)
 
 ### Bug Fixes
