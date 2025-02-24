@@ -1,3 +1,10 @@
+## [0.1.1](https://github.com/andreoliwa/logseq-go/compare/v0.1.0...v0.1.1) (2025-02-24)
+
+
+### Bug Fixes
+
+* retract version v1.0.0 published by mistake ([3e06bdb](https://github.com/andreoliwa/logseq-go/commit/3e06bdb39d708612009cf913a2fbcdd691ce99ca))
+
 # [0.1.0](https://github.com/andreoliwa/logseq-go/compare/v0.0.0...v0.1.0) (2025-02-23)
 
 ### Bug Fixes
