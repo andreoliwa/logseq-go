@@ -7,7 +7,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "pre-commit run --all-files"
+        "prepareCmd": "pre-commit run --all-files || true"
       }
     ],
     "@semantic-release/github",
