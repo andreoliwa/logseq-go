@@ -311,7 +311,13 @@ func convertToBlock(src []byte, node ast.Node) (*content.Block, error) {
 			} else {
 				// We have parsed blocks so this is trailing content, in Logseq
 				// this seems to be added to the last block.
-				if lastBlock, ok := block.LastChild().(*content.Block); ok {
+				// However, if this is a thematic break that should be treated as a list item,
+				// create a new block for it instead.
+				if _, ok := node.(*content.ThematicBreak); ok {
+					// Create a new block with a paragraph containing "---"
+					newBlock := content.NewBlock(content.NewParagraph(content.NewText("---")))
+					block.AddChild(newBlock)
+				} else if lastBlock, ok := block.LastChild().(*content.Block); ok {
 					// Find the node before the first block in sub-block.
 					var lastNode content.Node
 					for subNode := lastBlock.FirstChild(); subNode != nil; subNode = subNode.NextSibling() {
