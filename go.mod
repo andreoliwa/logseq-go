@@ -14,6 +14,7 @@ require (
 	github.com/onsi/gomega v1.37.0
 	github.com/yuin/goldmark v1.7.12
 	golang.org/x/text v0.27.0
+	gotest.tools/v3 v3.5.2
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3
 )
 
@@ -38,7 +39,6 @@ require (
 	github.com/google/pprof v0.0.0-20250630185457-6e76a2b096b5 // indirect
 	github.com/kamstrup/intmap v0.5.1 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/net v0.41.0 // indirect

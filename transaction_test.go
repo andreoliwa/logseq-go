@@ -2,6 +2,7 @@ package logseq_test
 
 import (
 	"context"
+	"gotest.tools/v3/golden"
 	"io"
 	"os"
 	"path/filepath"
@@ -112,13 +113,16 @@ var _ = Describe("Transaction", func() {
 					destPath := copyMarkdownExample(tempDir, filename, destFileName)
 					goldenPath := copyMarkdownExample(tempDir, filename, goldenFileName)
 
-					// Create the golden file manually in the temp dir by adding the expected content
-					goldenFileAppend, err := os.OpenFile(goldenPath, os.O_APPEND|os.O_WRONLY, 0644)
+					// Create the golden file by reading the original content and appending the expected content
+					// This ensures consistent line endings (LF) to match what the logseq library produces
+					originalContent, err := os.ReadFile(goldenPath)
 					Expect(err).NotTo(HaveOccurred())
-					defer goldenFileAppend.Close()
 
-					writeString, err := goldenFileAppend.WriteString("- Hello world")
-					Expect(writeString).To(Equal(13))
+					// Convert any CRLF to LF to match logseq library output
+					originalContentStr := strings.ReplaceAll(string(originalContent), "\r\n", "\n")
+					expectedContent := originalContentStr + "- Hello world"
+
+					err = os.WriteFile(goldenPath, []byte(expectedContent), 0644)
 					Expect(err).NotTo(HaveOccurred())
 
 					// Add a block to the page using the DOM
@@ -137,9 +141,10 @@ var _ = Describe("Transaction", func() {
 					// Compare the saved file with the golden file
 					savedContent, err := os.ReadFile(destPath)
 					Expect(err).NotTo(HaveOccurred())
-					goldenContent, err := os.ReadFile(goldenPath)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(string(savedContent)).To(Equal(string(goldenContent)))
+
+					// Use golden instead of asserting manually, because it works also on Windows.
+					// Search for GOTESTTOOLS_GOLDEN_NormalizeCRLFToLF in this repo
+					golden.Assert(GinkgoT(), string(savedContent), goldenPath)
 				})
 			}
 		})
