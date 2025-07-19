@@ -1472,18 +1472,6 @@ var _ = Describe("Parsing", func() {
 				)))
 			})
 
-			// TODO: allow properties with spaces on values
-			//It("can parse properties with spaces and punctuation", func() {
-			//	block, err := markdown.ParseString("key:: value with spaces - dashes (and more)")
-			//	Expect(err).ToNot(HaveOccurred())
-			//
-			//	Expect(block).To(tests.EqualNode(content.NewBlock(
-			//		content.NewProperties(
-			//			content.NewProperty("key", content.NewText("value with spaces - dashes (and more)")),
-			//		),
-			//	)))
-			//})
-
 			It("can parse multiple properties", func() {
 				block, err := markdown.ParseString("key1:: value1\nkey2:: value2")
 				Expect(err).ToNot(HaveOccurred())
@@ -1772,6 +1760,43 @@ var _ = Describe("Parsing", func() {
 					),
 				)))
 			})
+
+			DescribeTable("property value edge cases",
+				func(input, expectedValue string, shouldParse bool) {
+					block, err := markdown.ParseString(input)
+					Expect(err).ToNot(HaveOccurred())
+
+					if shouldParse {
+						Expect(block.Children()).To(HaveLen(1))
+						props, ok := block.Children()[0].(*content.Properties)
+						Expect(ok).To(BeTrue(), "Expected Properties node")
+						Expect(props.Children()).To(HaveLen(1))
+						prop, ok := props.Children()[0].(*content.Property)
+						Expect(ok).To(BeTrue(), "Expected Property node")
+						Expect(prop.Name).To(Equal("key"))
+						Expect(prop.Children()).To(HaveLen(1))
+						text, ok := prop.Children()[0].(*content.Text)
+						Expect(ok).To(BeTrue(), "Expected Text node")
+						Expect(text.Value).To(Equal(expectedValue))
+					} else {
+						// Should not parse as properties
+						if len(block.Children()) > 0 {
+							_, ok := block.Children()[0].(*content.Properties)
+							Expect(ok).To(BeFalse(), "Should not parse as Properties")
+						}
+					}
+				},
+				Entry(nil, "key:: value", "value", true),
+				Entry(nil, "key:: value with spaces", "value with spaces", true),
+				Entry(nil, "key:: value-with-dashes", "value-with-dashes", true),
+				Entry(nil, "key:: value (with parentheses)", "value (with parentheses)", true),
+				Entry(nil, "key:: value with spaces - dashes (and more)", "value with spaces - dashes (and more)", true),
+				Entry(nil, "key:: value with émojis 🎉 and ñ", "value with émojis 🎉 and ñ", true),
+				Entry(nil, "key:: value!@_+-=|;':\",.?", "value!@_+-=|;':\",.?", true),
+				Entry(nil, "key::   value with multiple spaces", "  value with multiple spaces", true),
+				Entry(nil, "key::value", "", false),
+				Entry(nil, "key:: ", "", false),
+			)
 		})
 	})
 

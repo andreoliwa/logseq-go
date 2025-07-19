@@ -121,6 +121,7 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 				}
 
 				// Check if there is a space after the ::
+				var propertyValueStart int
 				if !strings.HasPrefix(potentialName[matches[3]+2:], " ") {
 					// There isn't a space after :: in the current text node
 					nextTextNode, _ := next.(*ast.Text)
@@ -134,6 +135,10 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 						wasPreviousLinebreak = textNode.HardLineBreak() || textNode.SoftLineBreak()
 						continue
 					}
+					propertyValueStart = -1 // Value is in next text node
+				} else {
+					// The space is in the current text node, so the value starts after "key:: "
+					propertyValueStart = matches[3] + 3 // +2 for "::" and +1 for the space
 				}
 
 				if currentProperties == nil {
@@ -161,6 +166,19 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 				if previousTextNode, ok := textNode.PreviousSibling().(*ast.Text); ok {
 					previousTextNode.SetHardLineBreak(false)
 					previousTextNode.SetSoftLineBreak(false)
+				}
+
+				// Handle the property value
+				if propertyValueStart >= 0 {
+					// The property value is in the same text node
+					propertyValue := potentialName[propertyValueStart:]
+					if len(propertyValue) > 0 {
+						// Create a new text node for the property value
+						valueTextNode := ast.NewTextSegment(textNode.Segment.WithStart(textNode.Segment.Start + propertyValueStart))
+						valueTextNode.SetHardLineBreak(textNode.HardLineBreak())
+						valueTextNode.SetSoftLineBreak(textNode.SoftLineBreak())
+						currentProperty.AppendChild(currentProperty, valueTextNode)
+					}
 				}
 
 				// Remove the text node with the parameter name
