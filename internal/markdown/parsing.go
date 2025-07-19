@@ -256,12 +256,22 @@ func convertToBlock(src []byte, node ast.Node) (*content.Block, error) {
 			// This is a list using the block marker, so children are parsed
 			// as blocks.
 			for listItem := list.FirstChild(); listItem != nil; listItem = listItem.NextSibling() {
-				listItemBlock, err := convertToBlock(src, listItem)
-				if err != nil {
-					return nil, err
+				// Check if this list item contains literal extra dashes that should be preserved
+				if shouldPreserveLiteralDashes(src, listItem) {
+					// Convert this list item to a paragraph with literal dashes instead of nested blocks
+					paragraph, err := convertListItemToLiteralDashes(src, listItem)
+					if err != nil {
+						return nil, err
+					}
+					listItemBlock := content.NewBlock(paragraph)
+					block.AddChild(listItemBlock)
+				} else {
+					listItemBlock, err := convertToBlock(src, listItem)
+					if err != nil {
+						return nil, err
+					}
+					block.AddChild(listItemBlock)
 				}
-
-				block.AddChild(listItemBlock)
 			}
 
 			hasParsedBlock = true
@@ -735,6 +745,64 @@ func convertLogbook(src []byte, node *logbook) (content.Node, error) {
 	updatePreviousLine(node, logbook)
 
 	return logbook, nil
+}
+
+// shouldPreserveLiteralDashes checks if a list item contains only nested lists
+// that should be flattened back to literal extra dashes.
+func shouldPreserveLiteralDashes(src []byte, listItem ast.Node) bool {
+	// Check if this list item contains only a single nested list
+	if listItem.ChildCount() != 1 {
+		return false
+	}
+
+	firstChild := listItem.FirstChild()
+	if nestedList, ok := firstChild.(*ast.List); ok && nestedList.Marker == '-' {
+		// This list item contains only a nested list with dash markers
+		// This indicates it should be flattened to literal dashes
+		return true
+	}
+
+	return false
+}
+
+// convertListItemToLiteralDashes converts a list item with nested lists to a paragraph
+// that preserves the literal dash characters.
+func convertListItemToLiteralDashes(src []byte, listItem ast.Node) (*content.Paragraph, error) {
+	// Count the nesting depth and get the final text content
+	dashCount := 0
+	currentNode := listItem.FirstChild()
+
+	// Traverse nested lists to count dashes
+	for {
+		if nestedList, ok := currentNode.(*ast.List); ok && nestedList.Marker == '-' {
+			dashCount++
+			if nestedList.ChildCount() == 1 {
+				currentNode = nestedList.FirstChild().FirstChild()
+			} else {
+				break
+			}
+		} else {
+			break
+		}
+	}
+
+	// Get the text content from the deepest level
+	var textContent string
+	if textBlock, ok := currentNode.(*ast.TextBlock); ok {
+		textContent = string(textBlock.Text(src))
+	} else {
+		// Fallback: try to get text from any text node
+		textContent = "unknown content"
+	}
+
+	// Build the literal dash string: "- " repeated dashCount times + text
+	literalDashes := ""
+	for i := 0; i < dashCount; i++ {
+		literalDashes += "- "
+	}
+	literalDashes += textContent
+
+	return content.NewParagraph(content.NewText(literalDashes)), nil
 }
 
 // updatePreviousLine updates the PreviousLineType of the target based on the
