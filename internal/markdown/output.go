@@ -666,17 +666,27 @@ func (w *Output) writeRawHTMLBlock(node *content.RawHTMLBlock) error {
 }
 
 func (w *Output) writeHeading(node *content.Heading) error {
-	err := w.startBlock(node, strings.Repeat("#", node.Level)+" ")
+	// Handle newlines before the heading
+	if w.out.HasWrittenAtCurrentIndent() {
+		// Since headings don't implement PreviousLineAware, use default behavior
+		err := w.out.WriteString("\n\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Write the heading marker directly (not as indentation)
+	err := w.writeRaw(strings.Repeat("#", node.Level) + " ")
 	if err != nil {
 		return err
 	}
 
+	// Write the heading content inline
 	err = w.writeChildren(node)
 	if err != nil {
 		return err
 	}
 
-	w.endBlock()
 	return nil
 }
 
