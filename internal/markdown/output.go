@@ -757,7 +757,13 @@ func (w *Output) writeList(node *content.List) error {
 }
 
 func (w *Output) writeBlockquote(node *content.Blockquote) error {
-	err := w.startBlock(node, "> ")
+	// Use the first original spacing if available, otherwise default to "> "
+	marker := "> "
+	if len(node.OriginalSpacing) > 0 {
+		marker = ">" + node.OriginalSpacing[0]
+	}
+
+	err := w.startBlock(node, marker)
 	if err != nil {
 		return err
 	}
@@ -765,7 +771,9 @@ func (w *Output) writeBlockquote(node *content.Blockquote) error {
 	if !w.out.lastWasLineBreak {
 		// This is a hack to make sure that the indicator is written in lists
 		// if the blockquote is the first item in a list item.
-		_, err = w.out.output.Write([]byte{'>', ' '})
+		// Use the original spacing here too
+		markerBytes := []byte(marker)
+		_, err = w.out.output.Write(markerBytes)
 		if err != nil {
 			return err
 		}

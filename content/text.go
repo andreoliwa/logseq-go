@@ -222,10 +222,16 @@ var _ BlockNode = (*Paragraph)(nil)
 type Blockquote struct {
 	baseNodeWithChildren
 	previousLineAwareImpl
+
+	// OriginalSpacing stores the original spacing after the '>' character for each line
+	// This preserves the exact formatting from the source Markdown
+	OriginalSpacing []string
 }
 
 func NewBlockquote(children ...Node) *Blockquote {
-	b := &Blockquote{}
+	b := &Blockquote{
+		OriginalSpacing: make([]string, 0),
+	}
 	b.self = b
 	b.childValidator = allowOnlyBlockNodes
 	for _, child := range AddAutomaticParagraphs(children) {
@@ -243,6 +249,11 @@ func (b *Blockquote) debug(p *debugPrinter) {
 
 func (b *Blockquote) WithPreviousLineType(t PreviousLineType) *Blockquote {
 	b.previousLineType = t
+	return b
+}
+
+func (b *Blockquote) WithOriginalSpacing(spacing []string) *Blockquote {
+	b.OriginalSpacing = spacing
 	return b
 }
 

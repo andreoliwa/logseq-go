@@ -551,6 +551,11 @@ func convertCodeBlock(src []byte, node *ast.CodeBlock) (*content.CodeBlock, erro
 
 func convertBlockquote(src []byte, node *ast.Blockquote) (*content.Blockquote, error) {
 	blockquote := content.NewBlockquote()
+
+	// Extract original spacing from the source
+	spacing := extractBlockquoteSpacing(src, node)
+	blockquote.WithOriginalSpacing(spacing)
+
 	err := convertChildren(src, node, blockquote)
 	if err != nil {
 		return nil, err
@@ -559,6 +564,56 @@ func convertBlockquote(src []byte, node *ast.Blockquote) (*content.Blockquote, e
 	updatePreviousLine(node, blockquote)
 
 	return blockquote, nil
+}
+
+// extractBlockquoteSpacing extracts the original spacing after the '>' character
+// from each line of the blockquote in the source markdown
+func extractBlockquoteSpacing(src []byte, node *ast.Blockquote) []string {
+	spacing := make([]string, 0)
+
+	// Walk through all the lines that make up this blockquote
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if paragraph, ok := child.(*ast.Paragraph); ok {
+			// For each paragraph, we need to find the lines it spans
+			for textChild := paragraph.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
+				if textNode, ok := textChild.(*ast.Text); ok {
+					// Get the segment of this text node
+					segment := textNode.Segment
+
+					// Find the line start by going backwards from the segment start
+					lineStart := segment.Start
+					for lineStart > 0 && src[lineStart-1] != '\n' {
+						lineStart--
+					}
+
+					// Find the '>' character and extract spacing after it
+					for i := lineStart; i < segment.Start; i++ {
+						if src[i] == '>' {
+							// Extract everything between '>' and the actual content
+							spacingStart := i + 1
+							spacingEnd := segment.Start
+
+							// Handle case where there might be no space or multiple spaces
+							if spacingStart < len(src) && spacingEnd <= len(src) {
+								spacingStr := string(src[spacingStart:spacingEnd])
+								spacing = append(spacing, spacingStr)
+							} else {
+								spacing = append(spacing, " ") // default to single space
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// If we didn't find any spacing, default to single space
+	if len(spacing) == 0 {
+		spacing = append(spacing, " ")
+	}
+
+	return spacing
 }
 
 // convertList converts an ast.List into either a list or a block.
