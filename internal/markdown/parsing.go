@@ -562,9 +562,9 @@ func convertCodeBlock(src []byte, node *ast.CodeBlock) (*content.CodeBlock, erro
 func convertBlockquote(src []byte, node *ast.Blockquote) (*content.Blockquote, error) {
 	blockquote := content.NewBlockquote()
 
-	// Extract original spacing from the source
-	spacing := extractBlockquoteSpacing(src, node)
-	blockquote.WithOriginalSpacing(spacing)
+	// Extract complete line format information
+	lineFormats := extractBlockquoteLineFormats(src, node)
+	blockquote.WithOriginalLineFormats(lineFormats)
 
 	err := convertChildren(src, node, blockquote)
 	if err != nil {
@@ -576,54 +576,122 @@ func convertBlockquote(src []byte, node *ast.Blockquote) (*content.Blockquote, e
 	return blockquote, nil
 }
 
-// extractBlockquoteSpacing extracts the original spacing after the '>' character
-// from each line of the blockquote in the source markdown
-func extractBlockquoteSpacing(src []byte, node *ast.Blockquote) []string {
-	spacing := make([]string, 0)
+// extractBlockquoteLineFormats extracts the complete original formatting for each line
+// of the blockquote, including whether each line has a ">" marker and the exact prefix
+func extractBlockquoteLineFormats(src []byte, node *ast.Blockquote) []content.BlockquoteLineFormat {
+	formats := make([]content.BlockquoteLineFormat, 0)
 
-	// Walk through all the lines that make up this blockquote
+	// Find the range of the blockquote by looking at all text segments
+	minStart := len(src)
+	maxEnd := 0
+
+	// Walk through all the children to find text segments
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		if paragraph, ok := child.(*ast.Paragraph); ok {
-			// For each paragraph, we need to find the lines it spans
 			for textChild := paragraph.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
 				if textNode, ok := textChild.(*ast.Text); ok {
-					// Get the segment of this text node
 					segment := textNode.Segment
-
-					// Find the line start by going backwards from the segment start
-					lineStart := segment.Start
-					for lineStart > 0 && src[lineStart-1] != '\n' {
-						lineStart--
+					if segment.Start < minStart {
+						minStart = segment.Start
 					}
-
-					// Find the '>' character and extract spacing after it
-					for i := lineStart; i < segment.Start; i++ {
-						if src[i] == '>' {
-							// Extract everything between '>' and the actual content
-							spacingStart := i + 1
-							spacingEnd := segment.Start
-
-							// Handle case where there might be no space or multiple spaces
-							if spacingStart < len(src) && spacingEnd <= len(src) {
-								spacingStr := string(src[spacingStart:spacingEnd])
-								spacing = append(spacing, spacingStr)
-							} else {
-								spacing = append(spacing, " ") // default to single space
-							}
-							break
-						}
+					if segment.Stop > maxEnd {
+						maxEnd = segment.Stop
 					}
 				}
 			}
 		}
 	}
 
-	// If we didn't find any spacing, default to single space
-	if len(spacing) == 0 {
-		spacing = append(spacing, " ")
+	if minStart >= len(src) {
+		return formats
 	}
 
-	return spacing
+	// Find the actual start of the first line (go back to include blockquote markers)
+	lineStart := minStart
+	for lineStart > 0 && src[lineStart-1] != '\n' {
+		lineStart--
+	}
+
+	// Find all lines within the blockquote range
+	currentPos := lineStart
+	for currentPos < maxEnd {
+		// Find the end of this line
+		lineEnd := maxEnd
+		for i := currentPos; i < len(src); i++ {
+			if src[i] == '\n' {
+				lineEnd = i
+				break
+			}
+		}
+
+		// Extract the line content
+		lineContent := string(src[currentPos:lineEnd])
+
+		// Check if this line has a ">" marker and extract the prefix
+		format := content.BlockquoteLineFormat{
+			HasMarker: false,
+			Prefix:    "",
+		}
+
+		// Look for ">" marker anywhere in the line
+		contentStart := currentPos
+		foundMarker := false
+		markerPos := currentPos
+		for i := currentPos; i < lineEnd; i++ {
+			if src[i] == '>' {
+				format.HasMarker = true
+				foundMarker = true
+				markerPos = i
+				// Find where the actual content starts (after > and any spacing)
+				contentStart = i + 1
+				for contentStart < lineEnd && (src[contentStart] == ' ' || src[contentStart] == '\t') {
+					contentStart++
+				}
+
+				// Determine the prefix based on context
+				// If this looks like a list item (starts with "- " or similar),
+				// only include the part from the ">" marker onwards
+				lineContent := string(src[currentPos:lineEnd])
+				if strings.HasPrefix(strings.TrimLeft(lineContent, " \t"), "- >") ||
+					strings.HasPrefix(strings.TrimLeft(lineContent, " \t"), "* >") ||
+					strings.HasPrefix(strings.TrimLeft(lineContent, " \t"), "+ >") {
+					// This is a list item with blockquote, only include from ">" onwards
+					format.Prefix = string(src[markerPos:contentStart])
+				} else {
+					// This is not a list item, include full indentation
+					format.Prefix = string(src[currentPos:contentStart])
+				}
+				break
+			}
+		}
+
+		if !foundMarker {
+			// No ">" marker found, extract the indentation as prefix
+			// Find the first non-whitespace character
+			for i := currentPos; i < lineEnd; i++ {
+				if src[i] != ' ' && src[i] != '\t' {
+					format.Prefix = string(src[currentPos:i])
+					break
+				}
+			}
+		}
+
+		// If the line is all whitespace, use the whole line as prefix
+		if contentStart == lineEnd {
+			format.Prefix = lineContent
+		}
+
+		formats = append(formats, format)
+
+		// Move to the next line
+		if lineEnd < len(src) && src[lineEnd] == '\n' {
+			currentPos = lineEnd + 1
+		} else {
+			break
+		}
+	}
+
+	return formats
 }
 
 // convertList converts an ast.List into either a list or a block.

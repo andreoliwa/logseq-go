@@ -219,18 +219,26 @@ func (p *Paragraph) isBlock() {}
 
 var _ BlockNode = (*Paragraph)(nil)
 
+// BlockquoteLineFormat stores the original formatting for each line in a blockquote
+type BlockquoteLineFormat struct {
+	// HasMarker indicates whether this line has a ">" marker
+	HasMarker bool
+	// Prefix is the exact text before the content (including ">" and spacing if present)
+	Prefix string
+}
+
 type Blockquote struct {
 	baseNodeWithChildren
 	previousLineAwareImpl
 
-	// OriginalSpacing stores the original spacing after the '>' character for each line
-	// This preserves the exact formatting from the source Markdown
-	OriginalSpacing []string
+	// OriginalLineFormats stores the complete original formatting for each line
+	// This includes whether each line has a ">" marker and the exact prefix
+	OriginalLineFormats []BlockquoteLineFormat
 }
 
 func NewBlockquote(children ...Node) *Blockquote {
 	b := &Blockquote{
-		OriginalSpacing: make([]string, 0),
+		OriginalLineFormats: make([]BlockquoteLineFormat, 0),
 	}
 	b.self = b
 	b.childValidator = allowOnlyBlockNodes
@@ -252,8 +260,8 @@ func (b *Blockquote) WithPreviousLineType(t PreviousLineType) *Blockquote {
 	return b
 }
 
-func (b *Blockquote) WithOriginalSpacing(spacing []string) *Blockquote {
-	b.OriginalSpacing = spacing
+func (b *Blockquote) WithOriginalLineFormats(formats []BlockquoteLineFormat) *Blockquote {
+	b.OriginalLineFormats = formats
 	return b
 }
 

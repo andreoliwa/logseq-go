@@ -191,36 +191,43 @@ func (w *Output) startBlock(node content.BlockNode, marker string) error {
 	return w.startBlockWithAutomaticBehavior(node, marker, true)
 }
 
-func (w *Output) startBlockWithAutomaticBehavior(node content.BlockNode, marker string, doubleNewLineForAutomatic bool) error {
-	if w.out.HasWrittenAtCurrentIndent() {
-		var prefix string
-		if pl, ok := node.(content.PreviousLineAware); ok {
-			switch pl.PreviousLineType() {
-			case content.PreviousLineTypeBlank:
-				prefix = "\n\n"
-			case content.PreviousLineTypeNonBlank:
-				prefix = "\n"
-			case content.PreviousLineTypeAutomatic:
-				if doubleNewLineForAutomatic {
-					prefix = "\n\n"
-				} else {
-					prefix = "\n"
-				}
-			default:
-				return fmt.Errorf("unknown previous line type: %d", pl.PreviousLineType())
-			}
-		} else {
+// writeNewlinePrefix handles writing the appropriate newline prefix based on the previous line type
+func (w *Output) writeNewlinePrefix(node content.BlockNode, doubleNewLineForAutomatic bool) error {
+	if !w.out.HasWrittenAtCurrentIndent() {
+		return nil
+	}
+
+	var prefix string
+	if pl, ok := node.(content.PreviousLineAware); ok {
+		switch pl.PreviousLineType() {
+		case content.PreviousLineTypeBlank:
+			prefix = "\n\n"
+		case content.PreviousLineTypeNonBlank:
+			prefix = "\n"
+		case content.PreviousLineTypeAutomatic:
 			if doubleNewLineForAutomatic {
 				prefix = "\n\n"
 			} else {
 				prefix = "\n"
 			}
+		default:
+			return fmt.Errorf("unknown previous line type: %d", pl.PreviousLineType())
 		}
+	} else {
+		if doubleNewLineForAutomatic {
+			prefix = "\n\n"
+		} else {
+			prefix = "\n"
+		}
+	}
 
-		err := w.out.WriteString(prefix)
-		if err != nil {
-			return err
-		}
+	return w.out.WriteString(prefix)
+}
+
+func (w *Output) startBlockWithAutomaticBehavior(node content.BlockNode, marker string, doubleNewLineForAutomatic bool) error {
+	err := w.writeNewlinePrefix(node, doubleNewLineForAutomatic)
+	if err != nil {
+		return err
 	}
 
 	w.out.PushIndentation(marker)
@@ -667,16 +674,14 @@ func (w *Output) writeRawHTMLBlock(node *content.RawHTMLBlock) error {
 
 func (w *Output) writeHeading(node *content.Heading) error {
 	// Handle newlines before the heading
-	if w.out.HasWrittenAtCurrentIndent() {
-		// Since headings don't implement PreviousLineAware, use default behavior
-		err := w.out.WriteString("\n\n")
-		if err != nil {
-			return err
-		}
+	// Since headings don't implement PreviousLineAware, this will use default behavior (\n\n)
+	err := w.writeNewlinePrefix(node, true)
+	if err != nil {
+		return err
 	}
 
 	// Write the heading marker directly (not as indentation)
-	err := w.writeRaw(strings.Repeat("#", node.Level) + " ")
+	err = w.writeRaw(strings.Repeat("#", node.Level) + " ")
 	if err != nil {
 		return err
 	}
@@ -757,34 +762,191 @@ func (w *Output) writeList(node *content.List) error {
 }
 
 func (w *Output) writeBlockquote(node *content.Blockquote) error {
-	// Use the first original spacing if available, otherwise default to "> "
-	marker := "> "
-	if len(node.OriginalSpacing) > 0 {
-		marker = ">" + node.OriginalSpacing[0]
+	// Check if we have original line format information
+	if len(node.OriginalLineFormats) > 0 {
+		return w.writeBlockquoteWithOriginalFormats(node)
 	}
 
-	err := w.startBlock(node, marker)
+	// Fallback to old behavior if no line format information is available
+	// Use default marker
+	marker := "> "
+
+	// Check if we're inside a nested structure (like a list item)
+	isNested := w.out.IndentationLevel() > 0
+
+	if isNested {
+		// Special handling for blockquotes inside list items:
+		// - First line gets the ">" marker written directly
+		// - Subsequent lines get no additional indentation (rely on existing list indentation)
+
+		// Handle newlines before the blockquote
+		err := w.writeNewlinePrefix(node, true)
+		if err != nil {
+			return err
+		}
+
+		// Push empty indentation for continuation lines
+		w.out.PushIndentation("")
+
+		// Write the marker for the first line
+		if !w.out.lastWasLineBreak {
+			// We're in the middle of a line (like after "* "), write marker directly
+			markerBytes := []byte(marker)
+			_, err := w.out.output.Write(markerBytes)
+			if err != nil {
+				return err
+			}
+		} else {
+			// We're at the beginning of a line, write marker normally
+			err := w.writeRaw(marker)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = w.writeChildren(node)
+		if err != nil {
+			return err
+		}
+
+		w.endBlock()
+		return nil
+	} else {
+		// Standard blockquote handling: use marker as indentation for all lines
+		err := w.startBlock(node, marker)
+		if err != nil {
+			return err
+		}
+
+		if !w.out.lastWasLineBreak {
+			// This is a hack to make sure that the indicator is written in lists
+			// if the blockquote is the first item in a list item.
+			markerBytes := []byte(marker)
+			_, err = w.out.output.Write(markerBytes)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = w.writeChildren(node)
+		if err != nil {
+			return err
+		}
+
+		w.endBlock()
+		return nil
+	}
+}
+
+func (w *Output) writeBlockquoteWithOriginalFormats(node *content.Blockquote) error {
+	// Handle newlines before the blockquote
+	err := w.writeNewlinePrefix(node, true)
 	if err != nil {
 		return err
 	}
 
-	if !w.out.lastWasLineBreak {
-		// This is a hack to make sure that the indicator is written in lists
-		// if the blockquote is the first item in a list item.
-		// Use the original spacing here too
-		markerBytes := []byte(marker)
-		_, err = w.out.output.Write(markerBytes)
-		if err != nil {
-			return err
-		}
-	}
+	// Push empty indentation since we'll handle all formatting manually
+	w.out.PushIndentation("")
 
-	err = w.writeChildren(node)
+	// Manually write the content with original line formats
+	err = w.writeBlockquoteContentWithFormats(node, node.OriginalLineFormats)
 	if err != nil {
 		return err
 	}
 
 	w.endBlock()
+	return nil
+}
+
+func (w *Output) writeBlockquoteContentWithFormats(node *content.Blockquote, lineFormats []content.BlockquoteLineFormat) error {
+	lineIndex := 0
+	isFirstLine := true
+
+	// Walk through all children and extract text content
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if paragraph, ok := child.(*content.Paragraph); ok {
+			for textChild := paragraph.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
+				if text, ok := textChild.(*content.Text); ok {
+					// Split the text by lines
+					lines := strings.Split(text.Value, "\n")
+
+					for i, line := range lines {
+						if i > 0 || !isFirstLine {
+							// This is a new line, write the line format directly to bypass indentation
+							if lineIndex < len(lineFormats) {
+								format := lineFormats[lineIndex]
+								// Write newline + prefix directly to bypass indentation system
+								_, err := w.out.output.Write([]byte("\n" + format.Prefix))
+								if err != nil {
+									return err
+								}
+								w.out.lastWasLineBreak = false // We've written content after the newline
+							} else {
+								_, err := w.out.output.Write([]byte("\n"))
+								if err != nil {
+									return err
+								}
+								w.out.lastWasLineBreak = true
+							}
+							lineIndex++
+						} else if isFirstLine {
+							// First line, write the prefix if we're not at line start
+							if lineIndex < len(lineFormats) {
+								format := lineFormats[lineIndex]
+								if !w.out.lastWasLineBreak {
+									// We're in the middle of a line (like after "* ")
+									_, err := w.out.output.Write([]byte(format.Prefix))
+									if err != nil {
+										return err
+									}
+								} else {
+									// We're at the beginning of a line
+									err := w.writeRaw(format.Prefix)
+									if err != nil {
+										return err
+									}
+								}
+							}
+							lineIndex++
+						}
+
+						// Write the line content
+						if line != "" {
+							err := w.write(line, EscapePotentialMarkdown)
+							if err != nil {
+								return err
+							}
+						}
+
+						isFirstLine = false
+					}
+
+					// Handle line breaks
+					if text.SoftLineBreak {
+						// Soft line break - will be handled by next line's prefix
+					} else if text.HardLineBreak {
+						err := w.writeRaw("\\")
+						if err != nil {
+							return err
+						}
+					}
+				} else {
+					// For non-text children, use normal writing
+					err := w.Write(textChild)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			// For non-paragraph children, use normal writing
+			err := w.Write(child)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
