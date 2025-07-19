@@ -44,10 +44,22 @@ var _ = Describe("Parsing then outputting", func() {
 		FullyEqual("Bold text with hard newline", "**Basic\\\ncontent**")
 		Varies("Bold text with hard newline via two spaces", "**Basic  \ncontent**", "**Basic\\\ncontent**")
 
-		FullyEqual("Italic text", "*Basic* content")
+		FullyEqual("Italic text with stars", "*Basic* content")
+		FullyEqual("Italic text with underscore", "_Basic_ content")
 		FullyEqual("Italic text with newline", "*Basic\ncontent*")
 		FullyEqual("Italic text with hard newline", "*Basic\\\ncontent*")
 		Varies("Italic text with hard newline via two spaces", "*Basic  \ncontent*", "*Basic\\\ncontent*")
+
+		// Edge cases for emphasis character preservation
+		FullyEqual("Multiple underscore emphasis", "_first_ and _second_ underscore")
+		FullyEqual("Multiple star emphasis", "*first* and *second* star")
+		FullyEqual("Mixed underscore and star emphasis", "_underscore_ and *star* mixed")
+		FullyEqual("Bold and underscore italic", "**bold** and _italic_")
+		FullyEqual("Bold and star italic", "**bold** and *italic*")
+		FullyEqual("Underscore emphasis at start", "_start_ of text")
+		FullyEqual("Underscore emphasis at end", "text at _end_")
+		FullyEqual("Star emphasis at start", "*start* of text")
+		FullyEqual("Star emphasis at end", "text at *end*")
 
 		FullyEqual("Strikethrough text", "~~Basic~~ content")
 		FullyEqual("Strikethrough text with newline", "~~Basic\ncontent~~")

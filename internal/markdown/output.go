@@ -267,7 +267,9 @@ func (w *Output) writeEmphasis(node *content.Emphasis) error {
 		}
 	}
 
-	err := w.writeRaw("*")
+	// Use the stored character instead of hardcoded asterisk
+	emphasisChar := string(node.Character)
+	err := w.writeRaw(emphasisChar)
 	if err != nil {
 		return err
 	}
@@ -277,7 +279,7 @@ func (w *Output) writeEmphasis(node *content.Emphasis) error {
 		return err
 	}
 
-	err = w.writeRaw("*")
+	err = w.writeRaw(emphasisChar)
 	if err != nil {
 		return err
 	}

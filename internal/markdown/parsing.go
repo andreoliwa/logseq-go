@@ -78,7 +78,7 @@ func ParseString(src string) (*content.Block, error) {
 	return Parse([]byte(src))
 }
 
-// convert convert from the Goldmark AST into our AST.
+// convert converts from the Goldmark AST into our AST.
 func convert(src []byte, in ast.Node) (content.Node, error) {
 	switch node := in.(type) {
 	case *ast.Document:
@@ -392,7 +392,8 @@ func convertMacro(src []byte, node *macro) (content.Node, error) {
 func convertEmphasis(src []byte, node *ast.Emphasis) (content.HasChildren, error) {
 	var result content.HasChildren
 	if node.Level == 1 {
-		result = content.NewEmphasis()
+		emphasisChar := detectEmphasisCharacter(src, node)
+		result = content.NewEmphasisWithCharacter(emphasisChar)
 	} else if node.Level == 2 {
 		result = content.NewStrong()
 	} else {
@@ -404,6 +405,32 @@ func convertEmphasis(src []byte, node *ast.Emphasis) (content.HasChildren, error
 		return nil, err
 	}
 	return result, nil
+}
+
+// detectEmphasisCharacter attempts to determine the original emphasis character
+// used in the source text by examining the text around the emphasis node.
+// This is necessary because Goldmark normalizes the emphasis characters to stars.
+func detectEmphasisCharacter(src []byte, node *ast.Emphasis) rune {
+	// Try to find the first text child to get position information
+	firstChild := node.FirstChild()
+	if firstChild == nil {
+		return '*' // Default fallback
+	}
+
+	// If the first child is a text node, we can use its segment to find the emphasis character
+	if textNode, ok := firstChild.(*ast.Text); ok {
+		segment := textNode.Segment
+		if segment.Start > 0 {
+			// Look at the character just before the text content
+			charBefore := src[segment.Start-1]
+			if charBefore == '_' {
+				return '_'
+			}
+		}
+	}
+
+	// Default to star if we can't determine the character
+	return '*'
 }
 
 func convertStrikethrough(src []byte, node *east.Strikethrough) (*content.Strikethrough, error) {

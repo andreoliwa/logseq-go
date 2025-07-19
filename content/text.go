@@ -111,10 +111,25 @@ var _ InlineNode = (*CodeSpan)(nil)
 
 type Emphasis struct {
 	baseNodeWithChildren
+
+	// Character stores the original emphasis character used ('*' or '_')
+	Character rune
 }
 
 func NewEmphasis(children ...Node) *Emphasis {
-	e := &Emphasis{}
+	e := &Emphasis{
+		Character: '*', // Default to asterisk for backward compatibility
+	}
+	e.self = e
+	e.childValidator = allowOnlyInlineNodes
+	e.AddChildren(children...)
+	return e
+}
+
+func NewEmphasisWithCharacter(character rune, children ...Node) *Emphasis {
+	e := &Emphasis{
+		Character: character,
+	}
 	e.self = e
 	e.childValidator = allowOnlyInlineNodes
 	e.AddChildren(children...)

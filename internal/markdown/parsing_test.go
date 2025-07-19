@@ -112,15 +112,17 @@ var _ = Describe("Parsing", func() {
 	})
 
 	Describe("Inline formatting", func() {
-		It("can parse emphasis", func() {
-			block, err := markdown.ParseString("This is *emphasized* text")
+		It("can parse emphasis with stars or underscores", func() {
+			block, err := markdown.ParseString("This is *emphasized* text and this is _emphasized_ too")
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(block).To(tests.EqualNode(content.NewBlock(
 				content.NewParagraph(
 					content.NewText("This is "),
 					content.NewEmphasis(content.NewText("emphasized")),
-					content.NewText(" text"),
+					content.NewText(" text and this is "),
+					content.NewEmphasis(content.NewText("emphasized")),
+					content.NewText(" too"),
 				),
 			)))
 		})
