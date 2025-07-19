@@ -123,6 +123,10 @@ var _ = Describe("Parsing then outputting", func() {
 			FullyEqual("WAIT Task", "WAIT Task")
 			FullyEqual("WAITING Task", "WAITING Task")
 
+			FullyEqual("Todo mundo", "Todo mundo")
+			FullyEqual("Later tonight", "Later tonight")
+			FullyEqual("Now or never", "Now or never")
+
 			Varies("Task with leading space", " TODO Task", "TODO Task")
 		})
 	})

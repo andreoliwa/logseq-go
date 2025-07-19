@@ -12,9 +12,9 @@ var _ = Describe("Task status", func() {
 			taskMarker := content.NewTaskMarkerFromString(input)
 			Expect(taskMarker.Status).To(Equal(expectedStatus))
 		},
-		Entry("TODO", "todo", content.TaskStatusTodo),
-		Entry("DONE", "done", content.TaskStatusDone),
-		Entry("DOING", "doing", content.TaskStatusDoing),
+		Entry("TODO", "TODO", content.TaskStatusTodo),
+		Entry("DONE", "DONE", content.TaskStatusDone),
+		Entry("DOING", "DOING", content.TaskStatusDoing),
 		Entry("LATER", "LATER", content.TaskStatusLater),
 		Entry("NOW", "NOW", content.TaskStatusNow),
 		Entry("CANCELLED", "CANCELLED", content.TaskStatusCancelled),

@@ -1,8 +1,6 @@
 package content
 
-import "strings"
-
-// TaskStatus is the type of a task.
+// TaskStatus is the type of task.
 type TaskStatus int
 
 const (
@@ -42,9 +40,9 @@ func NewTaskMarker(t TaskStatus) *TaskMarker {
 }
 
 // ParseTaskStatus parses a task status from a TO DO/DOING/DONE/etc. string.
+// Logseq only considers uppercase task statuses.
 func ParseTaskStatus(status string) TaskStatus {
-	caseInsensitiveStatus := strings.ToUpper(status)
-	switch caseInsensitiveStatus {
+	switch status {
 	case "TODO":
 		return TaskStatusTodo
 	case "DONE":
