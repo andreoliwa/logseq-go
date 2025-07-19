@@ -1,3 +1,17 @@
+## [0.1.3](https://github.com/andreoliwa/logseq-go/compare/v0.1.2...v0.1.3) (2025-07-19)
+
+### Bug Fixes
+
+- handle properties with spaces in the value ([63bf0ed](https://github.com/andreoliwa/logseq-go/commit/63bf0ed20fa38afb2e278bf8c2c106de38ea533f))
+- header output ([95723ba](https://github.com/andreoliwa/logseq-go/commit/95723ba1081e8c6b2a4e3b9a576a72465d9756a2))
+- keep original spacing of block quotes ([5af6e23](https://github.com/andreoliwa/logseq-go/commit/5af6e23c7766452b254d823fdf331044676d463e))
+- parsing of escaped strikethrough ([796f351](https://github.com/andreoliwa/logseq-go/commit/796f3514768e31507db585b66f0b3a18b41b6489))
+- preserve block quote signs and spacing ([0907be2](https://github.com/andreoliwa/logseq-go/commit/0907be261c0d6c9c2ac50d9a775c0384fcc0aca3))
+- preserve original italics char (underscore or star) ([ca79289](https://github.com/andreoliwa/logseq-go/commit/ca792891fb9f691c6ef206c52fa697cfcce42b5c))
+- task status must be uppercase only ([16ff80c](https://github.com/andreoliwa/logseq-go/commit/16ff80c64fd52dcfb63a17fec1d2d0399fbd6403))
+- thematic break as a list item ([63ba750](https://github.com/andreoliwa/logseq-go/commit/63ba750c04d62fcf17edb168bbdd54be13bc6d04))
+- treat extra dashes as literals, not bullets ([739e769](https://github.com/andreoliwa/logseq-go/commit/739e769dda7008975f7f10105024b35eaf3ff1e0))
+
 ## [0.1.2](https://github.com/andreoliwa/logseq-go/compare/v0.1.1...v0.1.2) (2025-02-24)
 
 ### Bug Fixes
