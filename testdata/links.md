@@ -1,3 +1,4 @@
+- not escape brackets in Markdown links
 - Any link with the hashtag symbol like [http://example.com/path/to/page#anchor](http://example.com/path/to/page#anchor) should be preserved
-    - Text and URL are the same, but it's still a valid Markdown link
+- Text and URL are the same, but it's still a valid Markdown link
 - A link to a Slack channel like [#random](https://some-company.slack.com/archives/D01234NC6DEF) should not have the closing bracket escaped and should be preserved when in a Markdown link

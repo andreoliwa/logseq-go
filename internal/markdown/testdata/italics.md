@@ -1,2 +1,0 @@
-- _Italics with underscore should not be converted to stars... or should they?_
-- _Logseq accepts underscores, maybe accepts both?_

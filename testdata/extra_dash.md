@@ -1,0 +1,4 @@
+- keep extra dashes as they are
+- extra dashes are ignored by Logseq and not modified
+- - so they should be kept as they are
+- - - double extra dashes

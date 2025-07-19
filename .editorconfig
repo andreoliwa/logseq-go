@@ -1,0 +1,22 @@
+# see https://editorconfig.org/
+root = true
+
+[*]
+# Use Unix-style newlines for most files (except Windows files, see below).
+end_of_line = lf
+trim_trailing_whitespace = true
+indent_style = space
+insert_final_newline = true
+indent_size = 4
+charset = utf-8
+
+[*.{js,json,json5,yml,yaml,rb}]
+indent_size = 2
+
+[*.{md,md.golden}]
+indent_size = 2
+indent_style = tab
+insert_final_newline = false
+
+[Makefile]
+indent_style = tab

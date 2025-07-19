@@ -1,0 +1,4 @@
+- keep both italics underscores and stars as created by the user
+- Logseq accepts both, so keep them as they are, avoid modifying the user's content
+- _italics with underscore_
+- *italics with stars*

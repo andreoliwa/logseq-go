@@ -1,2 +1,0 @@
-- - extra dashes are ignored by Logseq and not modified
-- - so they should be kept as they are

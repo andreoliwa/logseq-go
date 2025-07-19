@@ -1,3 +1,4 @@
+- keep the divider as a bullet point
 - Before divider
 - ---
 - After divider
