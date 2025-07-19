@@ -75,7 +75,39 @@ func Parse(src []byte) (*content.Block, error) {
 }
 
 func ParseString(src string) (*content.Block, error) {
-	return Parse([]byte(src))
+	// Pre-process the input to handle escaped tildes in strikethrough
+	preprocessed := preprocessEscapedTildes(src)
+	block, err := Parse([]byte(preprocessed))
+	if err != nil {
+		return nil, err
+	}
+
+	// Post-process to restore escaped tildes
+	postprocessEscapedTildes(block)
+	return block, nil
+}
+
+// Placeholder for escaped tildes during parsing
+const escapedTildePlaceholder = "\uE000" // Private Use Area character
+
+func preprocessEscapedTildes(input string) string {
+	// Replace \~ with a placeholder to prevent Goldmark from misinterpreting it
+	return strings.ReplaceAll(input, "\\~", escapedTildePlaceholder)
+}
+
+func postprocessEscapedTildes(node content.Node) {
+	// Recursively process all text nodes to restore escaped tildes
+	if textNode, ok := node.(*content.Text); ok {
+		// Replace the placeholder with just the tilde (unescaped)
+		// This is correct for parsing - escaped tildes should become literal tildes
+		textNode.Value = strings.ReplaceAll(textNode.Value, escapedTildePlaceholder, "~")
+	}
+
+	if hasChildren, ok := node.(content.HasChildren); ok {
+		for child := hasChildren.FirstChild(); child != nil; child = child.NextSibling() {
+			postprocessEscapedTildes(child)
+		}
+	}
 }
 
 // convert converts from the Goldmark AST into our AST.
@@ -137,7 +169,39 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 }
 
 func unescapeString(src []byte) string {
-	return string(bytes.ReplaceAll(src, []byte(`\`), []byte(``)))
+	if len(src) == 0 {
+		return ""
+	}
+
+	var result []byte
+	for i := 0; i < len(src); i++ {
+		if src[i] == '\\' && i+1 < len(src) {
+			next := src[i+1]
+			// Check if the next character is escapable according to CommonMark
+			if isEscapableCharacter(next) {
+				result = append(result, next)
+				i++ // Skip the next character since we've processed it
+			} else {
+				result = append(result, src[i])
+			}
+		} else {
+			result = append(result, src[i])
+		}
+	}
+	return string(result)
+}
+
+// isEscapableCharacter returns true if the character can be escaped with a backslash
+// according to the CommonMark specification
+func isEscapableCharacter(c byte) bool {
+	// CommonMark escapable characters: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+	switch c {
+	case '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+		':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~':
+		return true
+	default:
+		return false
+	}
 }
 
 // convertChildren converts all children of a node and adds them to the target.

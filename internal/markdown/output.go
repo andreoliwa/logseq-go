@@ -23,6 +23,7 @@ func EscapePotentialMarkdown(prev rune, r rune) bool {
 		return true
 	}
 
+	// Don't escape ~~ if the first ~ is already escaped
 	if prev == '~' && r == '~' {
 		return true
 	}
@@ -52,14 +53,31 @@ func EscapeMacroQuotedArgument(prev rune, r rune) bool {
 
 func EscapeString(str string, f EscapeFunc) string {
 	out := strings.Builder{}
-	p := rune(0)
-	for _, r := range str {
-		if f(p, r) {
+	runes := []rune(str)
+
+	for i, r := range runes {
+		var prev rune
+		if i > 0 {
+			prev = runes[i-1]
+		}
+
+		// Check if this character is already escaped
+		alreadyEscaped := false
+		if i > 0 && runes[i-1] == '\\' {
+			// Count consecutive backslashes before this character
+			backslashes := 0
+			for j := i - 1; j >= 0 && runes[j] == '\\'; j-- {
+				backslashes++
+			}
+			// If odd number of backslashes, the character is escaped
+			alreadyEscaped = backslashes%2 == 1
+		}
+
+		if !alreadyEscaped && f(prev, r) {
 			out.WriteRune('\\')
 		}
 
 		out.WriteRune(r)
-		p = r
 	}
 
 	return out.String()
@@ -165,18 +183,8 @@ func (w *Output) writeRaw(s string) error {
 }
 
 func (w *Output) write(s string, escapeFunc EscapeFunc) error {
-	out := strings.Builder{}
-	p := rune(0)
-	for _, r := range s {
-		if escapeFunc(p, r) {
-			out.WriteRune('\\')
-		}
-
-		out.WriteRune(r)
-		p = r
-	}
-
-	return w.writeRaw(out.String())
+	escaped := EscapeString(s, escapeFunc)
+	return w.writeRaw(escaped)
 }
 
 func (w *Output) startBlock(node content.BlockNode, marker string) error {
@@ -235,9 +243,7 @@ func (w *Output) writeChildren(node content.HasChildren) error {
 }
 
 func (w *Output) writeText(node *content.Text) error {
-	// TODO: this breaks some tests but it's the behavior I expect in my Logseq Markdown so far...
-	//  I'll keep testing it without "EscapePotentialMarkdown"
-	err := w.write(node.Value, EscapeNone)
+	err := w.write(node.Value, EscapePotentialMarkdown)
 	if err != nil {
 		return err
 	}
