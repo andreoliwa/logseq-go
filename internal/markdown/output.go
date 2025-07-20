@@ -31,6 +31,20 @@ func EscapePotentialMarkdown(prev rune, r rune) bool {
 	return false
 }
 
+func EscapeLinkText(prev rune, r rune) bool {
+	// Don't escape brackets in link text since they're already protected by the link syntax
+	if r == '*' || r == '_' {
+		return true
+	}
+
+	// Don't escape ~~ if the first ~ is already escaped
+	if prev == '~' && r == '~' {
+		return true
+	}
+
+	return false
+}
+
 func EscapeLinkURL(prev rune, r rune) bool {
 	return r == '(' || r == ')'
 }
@@ -86,7 +100,8 @@ func EscapeString(str string, f EscapeFunc) string {
 // Output is used to write Markdown to an output buffer. It will help keep
 // track of list indentation and when to add newlines.
 type Output struct {
-	out *writer
+	out        *writer
+	insideLink bool // Track if we're currently writing inside a link
 }
 
 // NewWriter creates a new Markdown writer.
@@ -250,7 +265,13 @@ func (w *Output) writeChildren(node content.HasChildren) error {
 }
 
 func (w *Output) writeText(node *content.Text) error {
-	err := w.write(node.Value, EscapePotentialMarkdown)
+	// Use different escaping based on context
+	escapeFunc := EscapePotentialMarkdown
+	if w.insideLink {
+		escapeFunc = EscapeLinkText
+	}
+
+	err := w.write(node.Value, escapeFunc)
 	if err != nil {
 		return err
 	}
@@ -387,7 +408,15 @@ func (w *Output) writeLink(node *content.Link) error {
 		return err
 	}
 
+	// Set context flag to indicate we're inside a link
+	oldInsideLink := w.insideLink
+	w.insideLink = true
+
 	err = w.writeChildren(node)
+
+	// Restore previous context
+	w.insideLink = oldInsideLink
+
 	if err != nil {
 		return err
 	}

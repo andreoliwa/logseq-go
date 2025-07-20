@@ -121,6 +121,31 @@ var _ = Describe("Parsing then outputting", func() {
 		FullyEqual("Paragraph followed by properties", "Paragraph\n\nkey:: value")
 	})
 
+	Describe("Links", func() {
+		Describe("Markdown links with hashtags", func() {
+			FullyEqual("URL with hashtag anchor", "- Any link with the hashtag symbol like [http://example.com/path/to/page#anchor](http://example.com/path/to/page#anchor) should be preserved")
+			FullyEqual("Link text with hashtag", "- A link to a Slack channel like [#random](https://some-company.slack.com/archives/D01234NC6DEF) should not have the closing bracket escaped")
+			FullyEqual("Regular hashtag should still work", "- This is a regular #hashtag that should be preserved")
+			FullyEqual("Multiple links with hashtags", "- Check [#general](https://slack.com/general) and [https://example.com#section](https://example.com#section)")
+			FullyEqual("Link with hashtag in both text and URL", "- Link [#anchor](https://example.com#anchor) has hashtag in both parts")
+			FullyEqual("Complex URL with multiple hashtags", "- Complex [link](https://example.com/path#section1#section2) with multiple hashtags")
+			FullyEqual("Hashtag at start of link text", "- Start with [#hashtag text](https://example.com) in link")
+			FullyEqual("Hashtag at end of link text", "- End with [text #hashtag](https://example.com) in link")
+			FullyEqual("Multiple hashtags in link text", "- Multiple [#first #second #third](https://example.com) hashtags in text")
+			FullyEqual("URL with query parameters and hashtag", "- URL with [query params](https://example.com/path?param=value#anchor) and hashtag")
+			FullyEqual("Mixed regular and link hashtags", "- Regular #tag and [#link-tag](https://example.com) mixed together")
+			FullyEqual("Nested brackets with hashtags", "- Nested [text with [nested] and #hashtag](https://example.com) content")
+		})
+
+		Describe("Edge cases", func() {
+			FullyEqual("Hashtag immediately after link", "- Link [text](url)#hashtag should work")
+			FullyEqual("Hashtag immediately before link", "- Text #hashtag[link](url) should work")
+			FullyEqual("Multiple links on same line", "- Multiple [#first](url1) and [#second](url2) links")
+			Varies("Link with escaped brackets in text", "- Link [text with \\[escaped\\] brackets #tag](url) should work", "- Link [text with [escaped] brackets #tag](url) should work")
+			FullyEqual("Link with special characters and hashtag", "- Special [chars & symbols #tag](https://example.com/path?a=1&b=2#anchor) in link")
+		})
+	})
+
 	Describe("Tasks", func() {
 		Describe("Markers", func() {
 			FullyEqual("TODO Task", "TODO Task")

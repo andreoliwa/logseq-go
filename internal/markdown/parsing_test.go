@@ -355,6 +355,123 @@ var _ = Describe("Parsing", func() {
 			)))
 		})
 
+		It("can parse link with hashtag in text", func() {
+			block, err := markdown.ParseString("[#random](https://some-company.slack.com/archives/D01234NC6DEF)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://some-company.slack.com/archives/D01234NC6DEF",
+						content.NewText("#random"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with hashtag in URL", func() {
+			block, err := markdown.ParseString("[link](https://example.com/path#anchor)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com/path#anchor",
+						content.NewText("link"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with hashtag in title and anchor in URL", func() {
+			block, err := markdown.ParseString("[link](https://example.com#anchor '#hashtag title')")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com#anchor",
+						content.NewText("link"),
+					).WithTitle("#hashtag title"),
+				),
+			)))
+		})
+
+		It("can parse link with nested brackets and hashtag", func() {
+			block, err := markdown.ParseString("[text with [nested] and #hashtag](https://example.com)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("text with [nested] and #hashtag"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with multiple hashtags in text", func() {
+			block, err := markdown.ParseString("[#first #second #third](https://example.com)")
+			Expect(err).ToNot(HaveOccurred())
+
+			// Logseq doesn't recognize tags in Markdown links, so we have to parse all of them as text
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("#first #second #third"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with complex URL containing hashtags", func() {
+			block, err := markdown.ParseString("[complex link](https://example.com/path?param=value#section1#section2)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com/path?param=value#section1#section2",
+						content.NewText("complex link"),
+					),
+				),
+			)))
+		})
+
+		It("can parse mixed regular hashtag and link with hashtag", func() {
+			block, err := markdown.ParseString("Regular #tag and [#link-tag](https://example.com) mixed together")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Regular "),
+					content.NewHashtag("tag"),
+					content.NewText(" and "),
+					content.NewLink(
+						"https://example.com",
+						content.NewText("#link-tag"),
+					),
+					content.NewText(" mixed together"),
+				),
+			)))
+		})
+
+		It("can parse link with special characters and hashtag", func() {
+			block, err := markdown.ParseString("[chars & symbols #tag](https://example.com/path?a=1&b=2#anchor)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com/path?a=1&b=2#anchor",
+						content.NewText("chars & symbols #tag"),
+					),
+				),
+			)))
+		})
+
 		It("can parse auto link", func() {
 			block, err := markdown.ParseString("<https://example.com>")
 			Expect(err).ToNot(HaveOccurred())
