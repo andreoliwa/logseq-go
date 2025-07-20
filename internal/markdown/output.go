@@ -723,14 +723,22 @@ func (w *Output) writeList(node *content.List) error {
 
 	i := 0
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		if _, ok := child.(*content.ListItem); !ok {
+		listItem, ok := child.(*content.ListItem)
+		if !ok {
 			return fmt.Errorf("unsupported list child: %T", child)
 		}
 
-		i++
 		var marker string
 		if node.Type == content.ListTypeOrdered {
-			marker = fmt.Sprintf("%d", i) + string(node.Marker)
+			var number int
+			if listItem.OriginalNumber > 0 {
+				// Use the preserved original number
+				number = listItem.OriginalNumber
+			} else {
+				// Fallback to sequential numbering starting from 1
+				number = i + 1
+			}
+			marker = fmt.Sprintf("%d", number) + string(node.Marker)
 		} else {
 			marker = string(node.Marker)
 		}
@@ -755,6 +763,7 @@ func (w *Output) writeList(node *content.List) error {
 		}
 
 		w.out.PopIndentation()
+		i++
 	}
 
 	w.endBlock()

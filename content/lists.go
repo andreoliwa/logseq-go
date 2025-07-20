@@ -1,5 +1,7 @@
 package content
 
+import "fmt"
+
 type ListType int
 
 const (
@@ -137,6 +139,11 @@ func (l *ListSection) debug(p *debugPrinter) {
 
 type ListItem struct {
 	baseNodeWithChildren
+
+	// OriginalNumber stores the original number for ordered list items.
+	// For unordered list items, this field is ignored.
+	// If 0, the number will be auto-generated during output.
+	OriginalNumber int
 }
 
 func NewListItem(items ...Node) *ListItem {
@@ -146,8 +153,17 @@ func NewListItem(items ...Node) *ListItem {
 	return li
 }
 
+// WithOriginalNumber sets the original number for ordered list items.
+func (li *ListItem) WithOriginalNumber(number int) *ListItem {
+	li.OriginalNumber = number
+	return li
+}
+
 func (l *ListItem) debug(p *debugPrinter) {
 	p.StartType("ListItem")
+	if l.OriginalNumber > 0 {
+		p.Field("originalNumber", fmt.Sprintf("%d", l.OriginalNumber))
+	}
 	p.Children(l)
 	p.EndType()
 }

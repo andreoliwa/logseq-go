@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/andreoliwa/logseq-go/content"
@@ -697,12 +698,54 @@ func extractBlockquoteLineFormats(src []byte, node *ast.Blockquote) []content.Bl
 // convertList converts an ast.List into either a list or a block.
 func convertList(src []byte, node *ast.List) (*content.List, error) {
 	list := content.NewListFromMarker(node.Marker)
-	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		item, err := convertListItem(src, child)
-		if err != nil {
-			return nil, err
+
+	// For ordered lists, we need to check if the numbering is sequential
+	// If it's sequential starting from 1, we don't store original numbers
+	// If it's non-sequential or starts from a number other than 1, we store original numbers
+	if list.Type == content.ListTypeOrdered {
+		// First pass: extract all original numbers
+		var originalNumbers []int
+		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+			if listItem, ok := child.(*ast.ListItem); ok {
+				originalNumber := extractOriginalListItemNumber(src, listItem)
+				originalNumbers = append(originalNumbers, originalNumber)
+			}
 		}
-		list.AddChild(item)
+
+		// Check if the numbering is sequential starting from 1
+		isSequentialFromOne := true
+		for i, num := range originalNumbers {
+			if num != i+1 {
+				isSequentialFromOne = false
+				break
+			}
+		}
+
+		// Convert list items, storing original numbers only if needed
+		i := 0
+		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+			item, err := convertListItem(src, child)
+			if err != nil {
+				return nil, err
+			}
+
+			// Store original number only if the list is not sequential from 1
+			if !isSequentialFromOne && i < len(originalNumbers) && originalNumbers[i] > 0 {
+				item.WithOriginalNumber(originalNumbers[i])
+			}
+
+			list.AddChild(item)
+			i++
+		}
+	} else {
+		// For unordered lists, just convert normally
+		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+			item, err := convertListItem(src, child)
+			if err != nil {
+				return nil, err
+			}
+			list.AddChild(item)
+		}
 	}
 
 	updatePreviousLine(node, list)
@@ -871,6 +914,55 @@ func convertListItemToLiteralDashes(src []byte, listItem ast.Node) (*content.Par
 	literalDashes += textContent
 
 	return content.NewParagraph(content.NewText(literalDashes)), nil
+}
+
+// extractOriginalListItemNumber extracts the original number from the source text
+// for an ordered list item by looking backwards from the first text content to find
+// the number prefix (e.g., "14." or "19.")
+func extractOriginalListItemNumber(src []byte, listItem *ast.ListItem) int {
+	// Find the first text node in the list item to get position information
+	var firstTextNode *ast.Text
+	ast.Walk(listItem, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			if textNode, ok := node.(*ast.Text); ok && firstTextNode == nil {
+				firstTextNode = textNode
+				return ast.WalkStop, nil
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	if firstTextNode == nil {
+		return 0
+	}
+
+	// Get the segment of the first text node
+	segment := firstTextNode.Segment
+	if segment.Start == 0 {
+		return 0
+	}
+
+	// Look backwards from the text to find the list item marker
+	// We need to find the beginning of the line and then parse the number
+	lineStart := segment.Start
+	for lineStart > 0 && src[lineStart-1] != '\n' {
+		lineStart--
+	}
+
+	// Extract the line content up to the text
+	lineContent := string(src[lineStart:segment.Start])
+
+	// Parse the number from patterns like "14. " or "  19. " or "- > 23. "
+	// Use regex to find the number before the dot
+	re := regexp.MustCompile(`(\d+)\.`)
+	matches := re.FindStringSubmatch(lineContent)
+	if len(matches) >= 2 {
+		if num, err := strconv.Atoi(matches[1]); err == nil {
+			return num
+		}
+	}
+
+	return 0
 }
 
 // updatePreviousLine updates the PreviousLineType of the target based on the

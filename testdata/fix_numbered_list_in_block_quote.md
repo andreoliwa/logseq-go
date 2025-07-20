@@ -1,2 +1,0 @@
-- not modify a numbered list inside a block quote
-- > 2. A numbered list not starting with 1 and inside a block quote should NOT be modified
