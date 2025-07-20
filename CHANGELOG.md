@@ -1,3 +1,10 @@
+## [0.1.4](https://github.com/andreoliwa/logseq-go/compare/v0.1.3...v0.1.4) (2025-07-20)
+
+### Bug Fixes
+
+- handle multiple cases of links with hashtags ([ea1455b](https://github.com/andreoliwa/logseq-go/commit/ea1455b6fdb19a7e1201f6bea548e60f7711bd21))
+- preserve list item numbers inside block quotes ([a1362e1](https://github.com/andreoliwa/logseq-go/commit/a1362e19b913db8abcab7872e86483466c6165d2))
+
 ## [0.1.3](https://github.com/andreoliwa/logseq-go/compare/v0.1.2...v0.1.3) (2025-07-19)
 
 ### Bug Fixes
