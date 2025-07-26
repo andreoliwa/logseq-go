@@ -40,11 +40,31 @@ var _ = Describe("Output", func() {
 			Expect(buf.String()).To(Equal("abc\\\n"))
 		})
 
-		It("can write text with characters that should be escaped", func() {
+		It("should not escape brackets because Logseq already recognizes them", func() {
+			err := writer.Write(content.NewText("[my text]"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.String()).To(Equal("[my text]"))
+		})
+
+		It("should not escape underscores because Logseq already recognizes them", func() {
+			err := writer.Write(content.NewText("_username_"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.String()).To(Equal("_username_"))
+		})
+
+		It("should not escape stars because Logseq already recognizes them", func() {
+			// Test trailing star
 			err := writer.Write(content.NewText("abc*"))
 			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.String()).To(Equal("abc*"))
 
-			Expect(buf.String()).To(Equal("abc\\*"))
+			// Reset buffer for second test
+			buf.Reset()
+
+			// Test bold stars
+			err = writer.Write(content.NewText("**bold**"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.String()).To(Equal("**bold**"))
 		})
 
 		It("can write multiple text nodes", func() {

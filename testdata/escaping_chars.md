@@ -1,0 +1,7 @@
+- should not modify text nor escape chars when Logseq already recognizes them unescaped
+- 08:54 _AJ_: [19/07, 00:04] John: https://youtu.be/
+  [21/07, 03:09] Mark: Cool!
+- Rick![:spiral_calendar_pad:](https://a.slack-edge.com/1f5d3-fe0f.png)  [10:06](https://company.slack.com/archives/ABC/123)
+- We’re excited to share a **[working draft](https://docs.google.com/document/ABCD/edit?usp=sharing)****.**This doc captures our **current understanding of the problem space**. It’s still a work in progress — the goal is to get early input before we commit to specific implementation paths.We’d love your feedback on a few key points:
+- Thanks in advance! ![:some_emoji_with_underscores:](https://a.slack-edge.com/1234.png)
+	- 11:37 _She_: [Not urgent, long read!]

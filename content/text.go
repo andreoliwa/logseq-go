@@ -118,7 +118,7 @@ type Emphasis struct {
 
 func NewEmphasis(children ...Node) *Emphasis {
 	e := &Emphasis{
-		Character: '*', // Default to asterisk for backward compatibility
+		Character: '*', // Default to star for backward compatibility
 	}
 	e.self = e
 	e.childValidator = allowOnlyInlineNodes

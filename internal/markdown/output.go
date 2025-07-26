@@ -19,9 +19,8 @@ func EscapeNone(rune, rune) bool {
 }
 
 func EscapePotentialMarkdown(prev rune, r rune) bool {
-	if r == '*' || r == '_' || r == '[' || r == ']' {
-		return true
-	}
+	// Don't escape brackets, underscores, or stars - let Logseq handle them
+	// This allows Logseq to recognize unescaped Markdown characters
 
 	// Don't escape ~~ if the first ~ is already escaped
 	if prev == '~' && r == '~' {
@@ -301,7 +300,7 @@ func (w *Output) writeEmphasis(node *content.Emphasis) error {
 		}
 	}
 
-	// Use the stored character instead of hardcoded asterisk
+	// Use the stored character instead of hardcoded star
 	emphasisChar := string(node.Character)
 	err := w.writeRaw(emphasisChar)
 	if err != nil {
