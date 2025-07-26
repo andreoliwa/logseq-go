@@ -1,3 +1,10 @@
+## [0.1.5](https://github.com/andreoliwa/logseq-go/compare/v0.1.4...v0.1.5) (2025-07-26)
+
+### Bug Fixes
+
+- don't escape brackets, underscores and stars ([81ca657](https://github.com/andreoliwa/logseq-go/commit/81ca657d01f4a64233934b64d3a29eb01a766b82))
+- preserve tabs and spaces in the beginning of empty lines ([aa0bb67](https://github.com/andreoliwa/logseq-go/commit/aa0bb67c2846a4bcd4f801a0199f9fe29ed48e10))
+
 ## [0.1.4](https://github.com/andreoliwa/logseq-go/compare/v0.1.3...v0.1.4) (2025-07-20)
 
 ### Bug Fixes
