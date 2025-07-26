@@ -99,8 +99,9 @@ func EscapeString(str string, f EscapeFunc) string {
 // Output is used to write Markdown to an output buffer. It will help keep
 // track of list indentation and when to add newlines.
 type Output struct {
-	out        *writer
-	insideLink bool // Track if we're currently writing inside a link
+	out              *writer
+	insideLink       bool // Track if we're currently writing inside a link
+	blockIndentLevel int  // Track the current Logseq block indentation level
 }
 
 // NewWriter creates a new Markdown writer.
@@ -235,6 +236,29 @@ func (w *Output) writeNewlinePrefix(node content.BlockNode, doubleNewLineForAuto
 		}
 	}
 
+	// Handle Logseq indentation for empty lines
+	if prefix == "\n\n" && w.blockIndentLevel > 0 {
+		// For the double newline, we need to write:
+		// 1. First newline (end of previous content)
+		// 2. Indented empty line
+		// 3. Newline to end the empty line
+		logseqIndent := strings.Repeat("\t", w.blockIndentLevel) + "  "
+
+		// Write: newline + indented empty line + newline + indentation for next content
+		toWrite := "\n" + logseqIndent + "\n" + logseqIndent
+		_, err := w.out.output.Write([]byte(toWrite))
+		if err != nil {
+			return err
+		}
+
+		// Update the writer state to indicate we've written content but not a line break
+		// This is important so the next content doesn't get extra indentation
+		w.out.lastWasLineBreak = false
+		w.out.didWrite[len(w.out.didWrite)-1] = true
+
+		return nil
+	}
+
 	return w.out.WriteString(prefix)
 }
 
@@ -276,12 +300,12 @@ func (w *Output) writeText(node *content.Text) error {
 	}
 
 	if node.SoftLineBreak {
-		err = w.writeRaw("\n")
+		err := w.writeRaw("\n")
 		if err != nil {
 			return err
 		}
 	} else if node.HardLineBreak {
-		err = w.writeRaw("\\\n")
+		err := w.writeRaw("\\\n")
 		if err != nil {
 			return err
 		}
@@ -783,6 +807,8 @@ func (w *Output) writeList(node *content.List) error {
 			return err
 		}
 
+		w.out.PopIndentation()
+
 		if child.NextSibling() != nil {
 			err = w.writeRaw("\n")
 			if err != nil {
@@ -790,7 +816,6 @@ func (w *Output) writeList(node *content.List) error {
 			}
 		}
 
-		w.out.PopIndentation()
 		i++
 	}
 
@@ -1053,6 +1078,26 @@ func (w *Output) writeBlock(node *content.Block) error {
 		return err
 	}
 
+	// Track block indentation level
+	hasParentBlock := false
+	if _, ok := node.Parent().(*content.Block); ok {
+		hasParentBlock = true
+	}
+
+	// Track whether we incremented the level for this block
+	incrementedLevel := false
+
+	// Only increment for blocks that have parent blocks that are also blocks
+	// The first level of blocks (children of root) should be level 0
+	if hasParentBlock {
+		// Check if the parent's parent is also a block
+		grandParent := node.Parent().Parent()
+		if _, ok := grandParent.(*content.Block); ok {
+			w.blockIndentLevel++
+			incrementedLevel = true
+		}
+	}
+
 	// Write the content first
 	for _, child := range node.Content() {
 		err := w.Write(child)
@@ -1062,11 +1107,6 @@ func (w *Output) writeBlock(node *content.Block) error {
 	}
 
 	w.endBlock()
-
-	hasParentBlock := false
-	if _, ok := node.Parent().(*content.Block); ok {
-		hasParentBlock = true
-	}
 
 	previousIndent := ""
 	if hasParentBlock && w.out.IndentationLevel() > 0 {
@@ -1124,6 +1164,10 @@ func (w *Output) writeBlock(node *content.Block) error {
 	if hasParentBlock {
 		// Push the previous indentation back on the stack
 		w.out.PushIndentation(previousIndent)
+		// Only decrement if we actually incremented for this block
+		if incrementedLevel {
+			w.blockIndentLevel--
+		}
 	}
 
 	return nil

@@ -12,6 +12,8 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # Some test files are testing exactly trailing spaces and can't be removed
+        exclude: '^testdata/.*\.md$|.*/testdata/.*\.md$'
       - id: end-of-file-fixer
       - id: debug-statements
   - repo: https://github.com/pappasam/toml-sort
