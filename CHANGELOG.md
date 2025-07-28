@@ -1,3 +1,9 @@
+# [0.2.0](https://github.com/andreoliwa/logseq-go/compare/v0.1.5...v0.2.0) (2025-07-28)
+
+### Features
+
+- new content type to parse priorities ([2564c23](https://github.com/andreoliwa/logseq-go/commit/2564c23ef23a697872d5c267d30e1566b693894e))
+
 ## [0.1.5](https://github.com/andreoliwa/logseq-go/compare/v0.1.4...v0.1.5) (2025-07-26)
 
 ### Bug Fixes
