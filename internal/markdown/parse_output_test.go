@@ -159,11 +159,36 @@ var _ = Describe("Parsing then outputting", func() {
 			FullyEqual("WAIT Task", "WAIT Task")
 			FullyEqual("WAITING Task", "WAITING Task")
 
-			FullyEqual("Todo mundo", "Todo mundo")
-			FullyEqual("Later tonight", "Later tonight")
-			FullyEqual("Now or never", "Now or never")
+			FullyEqual("Mixed case Todo", "Todo mundo")
+			FullyEqual("Lowercase later", "later tonight")
+			FullyEqual("Mixed case Now", "Now or never")
 
 			Varies("Task with leading space", " TODO Task", "TODO Task")
 		})
+	})
+
+	Describe("Priorities", func() {
+		FullyEqual("Uppercase A", "[#A] First")
+		FullyEqual("Uppercase B", "[#B] Second")
+		FullyEqual("Uppercase C", "[#C] Third")
+
+		FullyEqual("Lowercase a", "[#a] First")
+		FullyEqual("Lowercase b", "[#b] Second")
+		FullyEqual("Lowercase c", "[#c] Third")
+
+		FullyEqual("After task marker", "DOING [#A] Task")
+
+		FullyEqual("Only the first priority is parsed", "[#A] Only one priority per line [#B] [#C]")
+
+		FullyEqual("Invalid letter", "[#D] Invalid")
+		FullyEqual("Invalid letter without space", "[#D]Invalid")
+
+		// Spaces
+		FullyEqual("Preserve spaces", "[#A]     Preserve")
+		FullyEqual("Valid letter but no space", "[#A]Valid")
+		FullyEqual("Space in the middle", "[# A] Middle")
+		FullyEqual("Space before", "[ #B] Before")
+		FullyEqual("Space after", "[#B ] After")
+		FullyEqual("Space before and after", "[ #C ] Before and after")
 	})
 })

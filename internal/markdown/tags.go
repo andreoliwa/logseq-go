@@ -106,6 +106,12 @@ func (t *tagParser) Parse(parent ast.Node, block text.Reader, pc parser.Context)
 
 	line = line[1:]
 
+	// Don't parse hashtags that have a space immediately after #
+	// This prevents parsing "[# C]" as a hashtag, but allows "[ #B]"
+	if len(line) > 0 && line[0] == ' ' {
+		return nil
+	}
+
 	end := 0
 	var value []byte
 
@@ -131,15 +137,52 @@ func (t *tagParser) Parse(parent ast.Node, block text.Reader, pc parser.Context)
 	} else {
 		// TODO: Does Logseq support Unicode tags?
 		// Scan until a Unicode space character is found.
+		// If we're in a [#X] pattern that wasn't parsed as a priority, include the ] in the hashtag
+
+		// Check if we're in a [#X] pattern that wasn't parsed as a priority
+		// Look backwards to find if there's a '[' that could be the start of a priority pattern
+		inUnparsedPriorityPattern := false
+		if seg.Start > 0 {
+			source := block.Source()
+			// Look backwards from the # to find a potential [ at the start of a priority pattern
+			// We need to account for patterns like "[ #B]" where there's space between [ and #
+			for i := seg.Start - 1; i >= 0; i-- {
+				if source[i] == '[' {
+					// Found a [, check if this could be a priority pattern
+					// Look ahead to see if there's a ] after our hashtag
+					hashtagStart := seg.Start + 1 // Skip the #
+					for j := hashtagStart; j < len(source); j++ {
+						if source[j] == ']' {
+							inUnparsedPriorityPattern = true
+							break
+						}
+						if source[j] == ' ' || source[j] == '\n' {
+							break // Not a priority pattern
+						}
+					}
+					break
+				}
+				if source[i] == '\n' {
+					break // Reached a new line, not a priority pattern
+				}
+			}
+		}
+
 		for i, r := range line {
 			if unicode.IsSpace(rune(r)) {
+				end = i
+				break
+			}
+			// If we're in a [#X] pattern that wasn't parsed as a priority,
+			// include the ] in the hashtag value (e.g., "B]" from "[#B]")
+			if !inUnparsedPriorityPattern && rune(r) == ']' {
 				end = i
 				break
 			}
 		}
 
 		if end == 0 {
-			// No space found, assume the tag is until end of line.
+			// No space or bracket found, assume the tag is until end of line.
 			end = len(line)
 		}
 

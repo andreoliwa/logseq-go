@@ -2271,4 +2271,161 @@ var _ = Describe("Parsing", func() {
 			)))
 		})
 	})
+
+	Describe("Priorities", func() {
+		It("can parse priority", func() {
+			block, err := markdown.ParseString("[#A] First priority")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPriority(content.PriorityHigh),
+					content.NewText("First priority"),
+				),
+			)))
+		})
+
+		It("can parse priority with lowercase letter", func() {
+			block, err := markdown.ParseString("[#b] Lowercase letter still valid")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPriority(content.PriorityMedium),
+					content.NewText("Lowercase letter still valid"),
+				),
+			)))
+		})
+
+		It("can parse priority after task marker", func() {
+			block, err := markdown.ParseString("TODO [#B] Second priority")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewTaskMarker(content.TaskStatusTodo),
+					content.NewPriority(content.PriorityMedium),
+					content.NewText("Second priority"),
+				),
+			)))
+		})
+
+		It("can parse multiple priorities in separate lines", func() {
+			block, err := markdown.ParseString("- [#A] First\n- DONE [#B] Second\n- WAITING [#C] Third")
+			Expect(err).ToNot(HaveOccurred())
+
+			// The parser creates individual blocks for each list item, not a single list
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewPriority(content.PriorityHigh),
+						content.NewText("First"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusDone),
+						content.NewPriority(content.PriorityMedium),
+						content.NewText("Second"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusWaiting),
+						content.NewPriority(content.PriorityLow),
+						content.NewText("Third"),
+					),
+				),
+			)))
+		})
+
+		It("can preserve spaces after brackets", func() {
+			block, err := markdown.ParseString("[#A]    There are 4 spaces after the brackets but one belongs to the priority")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPriority(content.PriorityHigh),
+					content.NewText("   There are 4 spaces after the brackets but one belongs to the priority"),
+				),
+			)))
+		})
+
+		It("can parse only the first priority in a line", func() {
+			block, err := markdown.ParseString("[#A] Only the first priority should be parsed [#B] [#C]")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPriority(content.PriorityHigh),
+					content.NewText("Only the first priority should be parsed ["),
+					content.NewHashtag("B]"),
+					content.NewText(" ["),
+					content.NewHashtag("C]"),
+				),
+			)))
+		})
+
+		It("can parse invalid priorities with wrong letter", func() {
+			block, err := markdown.ParseString("- [#D] Invalid letter\n- [#E]Invalid letter without space")
+			Expect(err).ToNot(HaveOccurred())
+
+			// The parser creates individual blocks for each list item, not a single list
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewPriority(content.PriorityNone),
+						content.NewText("Invalid letter"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewPriority(content.PriorityNone),
+						content.NewText("Invalid letter without space"),
+					),
+				),
+			)))
+		})
+
+		It("can parse invalid priorities with wrong spacing", func() {
+			block, err := markdown.ParseString("- [#A]Valid letter but no space\n- [# C] Space in the middle\n- [ #B] Space before\n- [#B ] Space after\n- [ #B ] Space before and after")
+			Expect(err).ToNot(HaveOccurred())
+
+			// The parser creates individual blocks for each list item, not a single list
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewPriority(content.PriorityNone),
+						content.NewText("Valid letter but no space"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("[# C] Space in the middle"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("[ "),
+						content.NewHashtag("B]"),
+						content.NewText(" Space before"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("["),
+						content.NewHashtag("B"),
+						content.NewText(" ] Space after"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("[ "),
+						content.NewHashtag("B"),
+						content.NewText(" ] Space before and after"),
+					),
+				),
+			)))
+		})
+	})
 })

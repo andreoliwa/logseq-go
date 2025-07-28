@@ -148,6 +148,8 @@ func (w *Output) Write(n content.Node) error {
 		return w.writePageLink(node)
 	case *content.Hashtag:
 		return w.writeHashtag(node)
+	case *content.Priority:
+		return w.writePriority(node)
 	case *content.BlockRef:
 		return w.writeBlockRef(node)
 	case *content.Image:
@@ -545,7 +547,7 @@ func (w *Output) writeHashtag(node *content.Hashtag) error {
 		}
 	}
 
-	err = w.write(node.To, EscapeWikiLink)
+	err = w.write(node.To, EscapePotentialMarkdown)
 	if err != nil {
 		return err
 	}
@@ -555,6 +557,43 @@ func (w *Output) writeHashtag(node *content.Hashtag) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (w *Output) writePriority(node *content.Priority) error {
+	// If we have original text (for both valid and invalid priorities), use it to preserve case
+	if node.OriginalText != "" {
+		return w.writeRaw(node.OriginalText)
+	}
+
+	// Fallback: For valid priorities without original text, construct the output
+	err := w.writeRaw("[#")
+	if err != nil {
+		return err
+	}
+
+	var letter string
+	switch node.Priority {
+	case content.PriorityHigh:
+		letter = "A"
+	case content.PriorityMedium:
+		letter = "B"
+	case content.PriorityLow:
+		letter = "C"
+	default:
+		return fmt.Errorf("unknown priority value: %v", node.Priority)
+	}
+
+	err = w.writeRaw(letter)
+	if err != nil {
+		return err
+	}
+
+	err = w.writeRaw("] ")
+	if err != nil {
+		return err
 	}
 
 	return nil
