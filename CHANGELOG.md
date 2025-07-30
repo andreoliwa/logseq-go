@@ -1,3 +1,11 @@
+## [0.2.1](https://github.com/andreoliwa/logseq-go/compare/v0.2.0...v0.2.1) (2025-07-30)
+
+### Bug Fixes
+
+- don't escape parenthesis in valid URLs ([5214141](https://github.com/andreoliwa/logseq-go/commit/521414142d91bd2b6aec22f3ada85db19b0dd660))
+- keep original line breaks in block quotes ([33ad53b](https://github.com/andreoliwa/logseq-go/commit/33ad53baa748f84d0f3b8fb1893ae57fd61b8857))
+- preserve tabs and spaces in code blocks ([53dbc29](https://github.com/andreoliwa/logseq-go/commit/53dbc290c1b8c2d88352d275b4426137e14195a1))
+
 # [0.2.0](https://github.com/andreoliwa/logseq-go/compare/v0.1.5...v0.2.0) (2025-07-28)
 
 ### Features
