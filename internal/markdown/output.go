@@ -963,81 +963,13 @@ func (w *Output) writeBlockquoteContentWithFormats(node *content.Blockquote, lin
 	lineIndex := 0
 	isFirstLine := true
 
-	// Walk through all children and extract text content
+	// Walk through all children
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		if paragraph, ok := child.(*content.Paragraph); ok {
-			for textChild := paragraph.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
-				if text, ok := textChild.(*content.Text); ok {
-					// Split the text by lines
-					lines := strings.Split(text.Value, "\n")
-
-					for i, line := range lines {
-						if i > 0 || !isFirstLine {
-							// This is a new line, write the line format directly to bypass indentation
-							if lineIndex < len(lineFormats) {
-								format := lineFormats[lineIndex]
-								// Write newline + prefix directly to bypass indentation system
-								_, err := w.out.output.Write([]byte("\n" + format.Prefix))
-								if err != nil {
-									return err
-								}
-								w.out.lastWasLineBreak = false // We've written content after the newline
-							} else {
-								_, err := w.out.output.Write([]byte("\n"))
-								if err != nil {
-									return err
-								}
-								w.out.lastWasLineBreak = true
-							}
-							lineIndex++
-						} else if isFirstLine {
-							// First line, write the prefix if we're not at line start
-							if lineIndex < len(lineFormats) {
-								format := lineFormats[lineIndex]
-								if !w.out.lastWasLineBreak {
-									// We're in the middle of a line (like after "* ")
-									_, err := w.out.output.Write([]byte(format.Prefix))
-									if err != nil {
-										return err
-									}
-								} else {
-									// We're at the beginning of a line
-									err := w.writeRaw(format.Prefix)
-									if err != nil {
-										return err
-									}
-								}
-							}
-							lineIndex++
-						}
-
-						// Write the line content
-						if line != "" {
-							err := w.write(line, EscapePotentialMarkdown)
-							if err != nil {
-								return err
-							}
-						}
-
-						isFirstLine = false
-					}
-
-					// Handle line breaks
-					if text.SoftLineBreak {
-						// Soft line break - will be handled by next line's prefix
-					} else if text.HardLineBreak {
-						err := w.writeRaw("\\")
-						if err != nil {
-							return err
-						}
-					}
-				} else {
-					// For non-text children, use normal writing
-					err := w.Write(textChild)
-					if err != nil {
-						return err
-					}
-				}
+			// Process all inline nodes in the paragraph together to maintain line structure
+			err := w.writeBlockquoteParagraphWithFormats(paragraph, lineFormats, &lineIndex, &isFirstLine)
+			if err != nil {
+				return err
 			}
 		} else {
 			// For non-paragraph children, use normal writing
@@ -1045,6 +977,257 @@ func (w *Output) writeBlockquoteContentWithFormats(node *content.Blockquote, lin
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+func (w *Output) writeBlockquoteParagraphWithFormats(paragraph *content.Paragraph, lineFormats []content.BlockquoteLineFormat, lineIndex *int, isFirstLine *bool) error {
+	// We need to process all inline nodes while tracking line boundaries
+	// The key insight is that line breaks only occur within Text nodes, not between different node types
+
+	for inlineNode := paragraph.FirstChild(); inlineNode != nil; inlineNode = inlineNode.NextSibling() {
+		if text, ok := inlineNode.(*content.Text); ok {
+			// Handle text nodes with potential line breaks
+			err := w.writeBlockquoteTextWithFormats(text, lineFormats, lineIndex, isFirstLine)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Handle non-text inline nodes (PageLink, etc.)
+			// These should be written inline without affecting line structure
+			// We need to use a special method that doesn't handle line breaks
+			err := w.writeInlineNodeInBlockquote(inlineNode)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (w *Output) writeInlineNodeInBlockquote(node content.Node) error {
+	// Write inline nodes without triggering line break handling
+	// This is similar to w.Write() but bypasses text line break processing
+	switch n := node.(type) {
+	case *content.PageLink:
+		return w.writePageLink(n)
+	case *content.Link:
+		return w.writeLinkInBlockquote(n)
+	case *content.Emphasis:
+		return w.writeEmphasisInBlockquote(n)
+	case *content.Strong:
+		return w.writeStrongInBlockquote(n)
+	case *content.CodeSpan:
+		return w.writeCodeSpan(n)
+	case *content.Hashtag:
+		return w.writeHashtag(n)
+	case *content.BlockRef:
+		return w.writeBlockRef(n)
+	default:
+		// For other node types, fall back to normal writing but this might cause issues
+		return w.Write(node)
+	}
+}
+
+func (w *Output) writeLinkInBlockquote(node *content.Link) error {
+	w.insideLink = true
+	defer func() { w.insideLink = false }()
+
+	err := w.writeRaw("[")
+	if err != nil {
+		return err
+	}
+
+	// Write link text without line break handling
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if text, ok := child.(*content.Text); ok {
+			// Write text content without line break processing
+			err := w.write(text.Value, EscapeLinkText)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := w.writeInlineNodeInBlockquote(child)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err = w.writeRaw("](")
+	if err != nil {
+		return err
+	}
+
+	err = w.write(node.URL, EscapeLinkURL)
+	if err != nil {
+		return err
+	}
+
+	if node.Title != "" {
+		err = w.writeRaw(" \"")
+		if err != nil {
+			return err
+		}
+
+		err = w.write(node.Title, EscapeLinkTitle)
+		if err != nil {
+			return err
+		}
+
+		err = w.writeRaw("\"")
+		if err != nil {
+			return err
+		}
+	}
+
+	err = w.writeRaw(")")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Output) writeEmphasisInBlockquote(node *content.Emphasis) error {
+	emphasisChar := string(node.Character)
+	err := w.writeRaw(emphasisChar)
+	if err != nil {
+		return err
+	}
+
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if text, ok := child.(*content.Text); ok {
+			err := w.write(text.Value, EscapePotentialMarkdown)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := w.writeInlineNodeInBlockquote(child)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err = w.writeRaw(emphasisChar)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Output) writeStrongInBlockquote(node *content.Strong) error {
+	err := w.writeRaw("**")
+	if err != nil {
+		return err
+	}
+
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if text, ok := child.(*content.Text); ok {
+			err := w.write(text.Value, EscapePotentialMarkdown)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := w.writeInlineNodeInBlockquote(child)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err = w.writeRaw("**")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Output) writeBlockquoteTextWithFormats(text *content.Text, lineFormats []content.BlockquoteLineFormat, lineIndex *int, isFirstLine *bool) error {
+	// Split the text by lines
+	lines := strings.Split(text.Value, "\n")
+
+	for i, line := range lines {
+		if i > 0 {
+			// This is a continuation line within this text node (actual line break in the text)
+			if *lineIndex < len(lineFormats) {
+				format := lineFormats[*lineIndex]
+				// Write newline + prefix directly to bypass indentation system
+				_, err := w.out.output.Write([]byte("\n" + format.Prefix))
+				if err != nil {
+					return err
+				}
+				w.out.lastWasLineBreak = false // We've written content after the newline
+			} else {
+				_, err := w.out.output.Write([]byte("\n"))
+				if err != nil {
+					return err
+				}
+				w.out.lastWasLineBreak = true
+			}
+			*lineIndex++
+		} else if *isFirstLine {
+			// This is the very first text content in the blockquote
+			if *lineIndex < len(lineFormats) {
+				format := lineFormats[*lineIndex]
+				if !w.out.lastWasLineBreak {
+					// We're in the middle of a line (like after "* ")
+					_, err := w.out.output.Write([]byte(format.Prefix))
+					if err != nil {
+						return err
+					}
+				} else {
+					// We're at the beginning of a line
+					err := w.writeRaw(format.Prefix)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			*lineIndex++
+			*isFirstLine = false
+		}
+		// For i == 0 && !*isFirstLine: this is the first line of a subsequent text node
+		// We don't need to write any prefix, just continue on the same line
+
+		// Write the line content
+		if line != "" {
+			err := w.write(line, EscapePotentialMarkdown)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Handle line breaks after writing the text content
+	if text.SoftLineBreak {
+		// Soft line break - write the next line format
+		if *lineIndex < len(lineFormats) {
+			format := lineFormats[*lineIndex]
+			// Write newline + prefix directly to bypass indentation system
+			_, err := w.out.output.Write([]byte("\n" + format.Prefix))
+			if err != nil {
+				return err
+			}
+			w.out.lastWasLineBreak = false // We've written content after the newline
+		} else {
+			_, err := w.out.output.Write([]byte("\n"))
+			if err != nil {
+				return err
+			}
+			w.out.lastWasLineBreak = true
+		}
+		*lineIndex++
+	} else if text.HardLineBreak {
+		err := w.writeRaw("\\")
+		if err != nil {
+			return err
 		}
 	}
 

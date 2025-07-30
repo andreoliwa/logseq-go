@@ -99,6 +99,18 @@ var _ = Describe("Parsing then outputting", func() {
 		FullyEqual("Code block interrupting paragraph", "Paragraph\n```go\nfunc main() {\n\tfmt.Println(\"Hello world\")\n}\n```")
 	})
 
+	Describe("Block quotes", func() {
+		FullyEqual("Block quote", "> This is a blockquote")
+		FullyEqual("Block quote with multiple spaces", ">    This is a blockquote with spaces")
+		FullyEqual("Block quote with page links", "> This is a blockquote with [[page link]] and text after")
+		FullyEqual("Block quote with hashtag", "> This is a blockquote with #hashtag and text after")
+		FullyEqual("Block quote with bold text", "> This is a blockquote with **bold text** and text after")
+		FullyEqual("Block quote with italic text", "> This is a blockquote with *italic text* and text after")
+		FullyEqual("Block quote with strikethrough text", "> This is a blockquote with ~~strikethrough text~~ and text after")
+		FullyEqual("Block quote with code text", "> This is a blockquote with `code text` and text after")
+		FullyEqual("Block quote with link", "> This is a blockquote with [link](https://example.com) and text after")
+	})
+
 	Describe("Macros", func() {
 		FullyEqual("Macro with no arguments", "{{poem}}")
 		FullyEqual("Macro with one argument", "{{poem red}}")

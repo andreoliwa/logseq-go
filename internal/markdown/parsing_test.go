@@ -355,6 +355,20 @@ var _ = Describe("Parsing", func() {
 			)))
 		})
 
+		It("can parse link with parenthesis in text", func() {
+			block, err := markdown.ParseString("[This is a link (with parenthesis)](https://example.com)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("This is a link (with parenthesis)"),
+					),
+				),
+			)))
+		})
+
 		It("can parse link with hashtag in text", func() {
 			block, err := markdown.ParseString("[#random](https://some-company.slack.com/archives/D01234NC6DEF)")
 			Expect(err).ToNot(HaveOccurred())
