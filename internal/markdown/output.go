@@ -199,6 +199,64 @@ func (w *Output) writeRaw(s string) error {
 	return w.out.WriteString(s)
 }
 
+// writeRawPreservingWhitespace writes content with current indentation applied to each line,
+// but preserves the internal whitespace of each line exactly as it is.
+// This is used for content like code blocks where we want to preserve exact whitespace within lines.
+func (w *Output) writeRawPreservingWhitespace(s string) error {
+	if len(s) == 0 {
+		return nil
+	}
+
+	// Mark that we've written content at this level
+	w.out.didWrite[len(w.out.didWrite)-1] = true
+
+	// Split the content into lines and apply indentation to each line
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		// For the first line, check if we need to write indentation
+		if i == 0 && w.out.lastWasLineBreak {
+			_, err := w.out.output.Write(w.out.OnlyIndent())
+			if err != nil {
+				return err
+			}
+			_, err = w.out.output.Write(w.out.TrailingWhitespace())
+			if err != nil {
+				return err
+			}
+		}
+
+		// Write the line content exactly as it is (preserving internal whitespace)
+		_, err := w.out.output.Write([]byte(line))
+		if err != nil {
+			return err
+		}
+
+		// Add newline if this is not the last line
+		if i < len(lines)-1 {
+			_, err := w.out.output.Write([]byte("\n"))
+			if err != nil {
+				return err
+			}
+
+			// For subsequent lines, always write the block indentation
+			// This ensures that even empty lines get the proper indentation
+			_, err = w.out.output.Write(w.out.OnlyIndent())
+			if err != nil {
+				return err
+			}
+			_, err = w.out.output.Write(w.out.TrailingWhitespace())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Update the lastWasLineBreak state based on whether the content ends with a newline
+	w.out.lastWasLineBreak = len(s) > 0 && s[len(s)-1] == '\n'
+
+	return nil
+}
+
 func (w *Output) write(s string, escapeFunc EscapeFunc) error {
 	escaped := EscapeString(s, escapeFunc)
 	return w.writeRaw(escaped)
@@ -1257,7 +1315,8 @@ func (w *Output) writeCodeBlock(node *content.CodeBlock) error {
 		return err
 	}
 
-	err = w.writeRaw(node.Code)
+	// Use writeRawPreservingWhitespace for the code content to preserve tabs and spaces
+	err = w.writeRawPreservingWhitespace(node.Code)
 	if err != nil {
 		return err
 	}
@@ -1269,6 +1328,10 @@ func (w *Output) writeCodeBlock(node *content.CodeBlock) error {
 			return err
 		}
 	}
+
+	// Reset the lastWasLineBreak state to false so the closing ``` doesn't get extra indentation
+	// The closing ``` should be at the same level as the opening ```
+	w.out.lastWasLineBreak = false
 
 	err = w.writeRaw("```")
 	if err != nil {
