@@ -227,6 +227,12 @@ var _ = Describe("Output", func() {
 				Expect(buf.String()).To(Equal("[abc](https://example.com 'title\\)')"))
 			})
 
+			It("should not escape parenthesis in valid Markdown URLs", func() {
+				err := writer.Write(content.NewLink("https://symbolism.fandom.com/wiki/93_(Thelema)", content.NewText("93 (Thelema) | Symbolism Wiki | Fandom")))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("[93 (Thelema) | Symbolism Wiki | Fandom](https://symbolism.fandom.com/wiki/93_(Thelema))"))
+			})
 		})
 
 		Describe("Auto links", func() {

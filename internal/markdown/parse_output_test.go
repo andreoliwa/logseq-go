@@ -156,6 +156,12 @@ var _ = Describe("Parsing then outputting", func() {
 			Varies("Link with escaped brackets in text", "- Link [text with \\[escaped\\] brackets #tag](url) should work", "- Link [text with [escaped] brackets #tag](url) should work")
 			FullyEqual("Link with special characters and hashtag", "- Special [chars & symbols #tag](https://example.com/path?a=1&b=2#anchor) in link")
 		})
+
+		Describe("URLs with parentheses", func() {
+			FullyEqual("URL with parentheses should not be escaped", "[93 (Thelema) | Symbolism Wiki | Fandom](https://symbolism.fandom.com/wiki/93_(Thelema))")
+			FullyEqual("URL with multiple parentheses", "[Wikipedia article](https://en.wikipedia.org/wiki/Function_(mathematics))")
+			FullyEqual("URL with nested parentheses", "[Complex URL](https://example.com/path/(nested(content)))")
+		})
 	})
 
 	Describe("Tasks", func() {

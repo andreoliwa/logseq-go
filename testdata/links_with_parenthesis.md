@@ -1,0 +1,2 @@
+- not escape parenthesis in valid Markdown URLs
+- [93 (Thelema) | Symbolism Wiki | Fandom](https://symbolism.fandom.com/wiki/93_(Thelema))

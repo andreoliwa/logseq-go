@@ -44,10 +44,6 @@ func EscapeLinkText(prev rune, r rune) bool {
 	return false
 }
 
-func EscapeLinkURL(prev rune, r rune) bool {
-	return r == '(' || r == ')'
-}
-
 func EscapeLinkTitle(prev rune, r rune) bool {
 	return r == '"' || r == '\'' || r == ')'
 }
@@ -509,7 +505,7 @@ func (w *Output) writeLink(node *content.Link) error {
 		return err
 	}
 
-	err = w.write(node.URL, EscapeLinkURL)
+	err = w.write(node.URL, EscapeNone)
 	if err != nil {
 		return err
 	}
@@ -692,7 +688,7 @@ func (w *Output) writeImage(node *content.Image) error {
 		return err
 	}
 
-	err = w.write(node.URL, EscapeLinkURL)
+	err = w.write(node.URL, EscapeNone)
 	if err != nil {
 		return err
 	}
@@ -1120,7 +1116,7 @@ func (w *Output) writeLinkInBlockquote(node *content.Link) error {
 		return err
 	}
 
-	err = w.write(node.URL, EscapeLinkURL)
+	err = w.write(node.URL, EscapeNone)
 	if err != nil {
 		return err
 	}
