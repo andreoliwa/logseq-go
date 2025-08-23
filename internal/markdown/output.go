@@ -31,8 +31,9 @@ func EscapePotentialMarkdown(prev rune, r rune) bool {
 }
 
 func EscapeLinkText(prev rune, r rune) bool {
-	// Don't escape brackets in link text since they're already protected by the link syntax
-	if r == '*' || r == '_' {
+	// Don't escape brackets, underscores, or stars in link text since they're already protected by the link syntax
+	// Underscores should remain unescaped regardless of context
+	if r == '*' {
 		return true
 	}
 

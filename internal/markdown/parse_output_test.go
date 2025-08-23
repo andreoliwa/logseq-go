@@ -154,7 +154,7 @@ var _ = Describe("Parsing then outputting", func() {
 			FullyEqual("Hashtag immediately before link", "- Text #hashtag[link](url) should work")
 			FullyEqual("Multiple links on same line", "- Multiple [#first](url1) and [#second](url2) links")
 			Varies("Link with escaped brackets in text", "- Link [text with \\[escaped\\] brackets #tag](url) should work", "- Link [text with [escaped] brackets #tag](url) should work")
-			FullyEqual("Link with special characters and hashtag", "- Special [chars & symbols #tag](https://example.com/path?a=1&b=2#anchor) in link")
+			FullyEqual("Link with special characters and hashtag", "- Special [chars & symbols #tag word_with_underscores](https://example.com/path?a=1&b=2#anchor) in link")
 		})
 
 		Describe("URLs with parentheses", func() {
