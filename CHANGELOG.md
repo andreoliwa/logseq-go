@@ -1,3 +1,9 @@
+## [0.2.2](https://github.com/andreoliwa/logseq-go/compare/v0.2.1...v0.2.2) (2025-08-23)
+
+### Bug Fixes
+
+- don't escape underscores in Markdown links ([80e2855](https://github.com/andreoliwa/logseq-go/commit/80e28557f2a629e2c5781345da31cac0905bafdd))
+
 ## [0.2.1](https://github.com/andreoliwa/logseq-go/compare/v0.2.0...v0.2.1) (2025-07-30)
 
 ### Bug Fixes
