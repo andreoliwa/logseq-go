@@ -178,10 +178,6 @@ func loadRootBlock(path string) (*content.Block, error) {
 		return nil, fmt.Errorf("failed to parse markdown: %w", err)
 	}
 
-	// Check if the block has content, in which case we wrap it
-	if len(block.Content()) > 0 {
-		block = content.NewBlock(block)
-	}
-
+	// Don't wrap the block - the output code will handle top-level content correctly
 	return block, nil
 }

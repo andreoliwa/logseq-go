@@ -131,6 +131,20 @@ var _ = Describe("Parsing then outputting", func() {
 		FullyEqual("Paragraphs interrupted by properties", "Paragraph\nkey:: value")
 		FullyEqual("Paragraphs interrupted by properties followed by more paragraph", "Paragraph\nkey:: value\nParagraph")
 		FullyEqual("Paragraph followed by properties", "Paragraph\n\nkey:: value")
+
+		Describe("Aliases", func() {
+			FullyEqual("Single alias", "alias:: another name for the page")
+			FullyEqual("Multiple aliases preserving original spaces", "alias::  two spaces before,   3 before and 2 after  ,last one")
+		})
+
+		Describe("Blank lines after properties", func() {
+			FullyEqual("Properties at top of page with blank line followed by block", "key:: value\n\n- First block")
+			Varies("Properties at top of page without blank line followed by block", "key:: value\n- First block", "key:: value\n\n- First block")
+			Varies("Properties at top of page with blank line followed by paragraph", "key:: value\n\nParagraph text", "key:: value\nParagraph text")
+			FullyEqual("Multiple properties with blank line followed by block", "key:: value\nkey2:: value2\n\n- First block")
+			FullyEqual("Aliases with blank line followed by block", "alias:: page1, page2\n\n- First block")
+			FullyEqual("Mixed properties and aliases with blank line", "key:: value\nalias:: other name\n\n- First block")
+		})
 	})
 
 	Describe("Links", func() {

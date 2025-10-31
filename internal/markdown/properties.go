@@ -55,13 +55,21 @@ var defaultPropertiesASTTransformer = &propertiesASTTransformer{}
 // If a property is found just after another property, it is considered to be
 // part of the same properties block.
 func (t *propertiesASTTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	ast.Walk(node, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if entering && (node.Kind() == ast.KindParagraph || node.Kind() == ast.KindTextBlock) {
-			t.transformTextBlockOrParagraph(node, reader)
-		}
+	// Collect all Paragraph and TextBlock nodes first, then transform them
+	// We can't modify the tree while walking it because it breaks the walker
+	var nodesToTransform []ast.Node
 
+	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && (n.Kind() == ast.KindParagraph || n.Kind() == ast.KindTextBlock) {
+			nodesToTransform = append(nodesToTransform, n)
+		}
 		return ast.WalkContinue, nil
 	})
+
+	// Now transform all collected nodes
+	for _, n := range nodesToTransform {
+		t.transformTextBlockOrParagraph(n, reader)
+	}
 }
 
 func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, reader text.Reader) {
@@ -219,7 +227,7 @@ func maybeSplitParagraph(node ast.Node, divider *properties, firstChildOfNewPara
 	}
 
 	if node.FirstChild() == nil {
-		// The paragraph is now empty
+		// The paragraph is now empty, remove it
 		node.Parent().RemoveChild(node.Parent(), node)
 	}
 

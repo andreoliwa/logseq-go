@@ -1477,7 +1477,7 @@ var _ = Describe("Parsing", func() {
 				content.NewBlock(
 					content.NewParagraph(
 						content.NewText("Item 1"),
-					),
+					).WithPreviousLineType(content.PreviousLineTypeBlank),
 				),
 				content.NewBlock(
 					content.NewParagraph(
@@ -1577,7 +1577,7 @@ var _ = Describe("Parsing", func() {
 					content.NewBlock(
 						content.NewParagraph(
 							content.NewText("Item 1"),
-						),
+						).WithPreviousLineType(content.PreviousLineTypeBlank),
 					),
 					content.NewBlock(
 						content.NewParagraph(
@@ -1928,6 +1928,38 @@ var _ = Describe("Parsing", func() {
 				Entry(nil, "key::value", "", false),
 				Entry(nil, "key:: ", "", false),
 			)
+		})
+
+		Describe("Aliases", func() {
+			It("can parse single alias at top level", func() {
+				block, err := markdown.ParseString("alias:: another name for the page")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(
+					content.NewBlock(
+						content.NewProperties(
+							content.NewAlias(content.NewText("another name for the page")),
+						),
+					),
+				))
+			})
+
+			It("can parse multiple aliases trimming outer spaces", func() {
+				block, err := markdown.ParseString("alias::   one thing ,  another   thing   , yet another thing  ")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(
+					content.NewBlock(
+						content.NewProperties(
+							content.NewAlias(
+								content.NewText("one thing"),
+								content.NewText("another   thing"),
+								content.NewText("yet another thing"),
+							),
+						),
+					),
+				))
+			})
 		})
 	})
 

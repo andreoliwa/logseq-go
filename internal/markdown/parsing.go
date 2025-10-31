@@ -284,6 +284,16 @@ func convertToBlock(src []byte, node ast.Node) (*content.Block, error) {
 					if err != nil {
 						return nil, err
 					}
+
+					// If this is the first list item AND there's content before the list,
+					// AND the list item has blank lines before it, set PreviousLineType on the first child.
+					// Used when parsing metadata like aliases and filters.
+					if listItem == list.FirstChild() && block.FirstChild() != nil && listItem.HasBlankPreviousLines() && listItemBlock.FirstChild() != nil {
+						if pla, ok := listItemBlock.FirstChild().(content.PreviousLineAware); ok {
+							pla.SetPreviousLineType(content.PreviousLineTypeBlank)
+						}
+					}
+
 					block.AddChild(listItemBlock)
 				}
 			}
@@ -816,13 +826,48 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 			return nil, errors.New("Invalid child in properties")
 		}
 
-		prop := content.NewProperty(p.Name)
-		err := convertChildren(src, p, prop)
-		if err != nil {
-			return nil, err
-		}
+		// Special handling for alias properties: split by commas and create Alias node
+		if p.Name == content.PropertyNameAlias {
+			// Extract the full text value to preserve spacing (except trailing spaces at end of line)
+			var fullValue string
+			if p.FirstChild() != nil {
+				// Get all text content from the AST nodes
+				var textParts []string
+				for textChild := p.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
+					if textNode, ok := textChild.(*ast.Text); ok {
+						textParts = append(textParts, string(textNode.Segment.Value(src)))
+					}
+				}
+				fullValue = strings.Join(textParts, "")
+			}
 
-		properties.AddChild(prop)
+			// Split by commas and create Text nodes for each alias value
+			parts := strings.Split(fullValue, ",")
+			var aliasChildren []content.Node
+
+			for _, part := range parts {
+				trimmed := strings.TrimSpace(part)
+				if trimmed == "" {
+					continue
+				}
+				aliasChildren = append(aliasChildren, content.NewText(trimmed))
+			}
+
+			if len(aliasChildren) > 0 {
+				alias := content.NewAlias(aliasChildren...)
+				// Store the full original value with spacing preserved (except trailing)
+				alias.OriginalValue = fullValue
+				properties.AddChild(alias)
+			}
+		} else {
+			// Regular property handling
+			prop := content.NewProperty(p.Name)
+			err := convertChildren(src, p, prop)
+			if err != nil {
+				return nil, err
+			}
+			properties.AddChild(prop)
+		}
 	}
 
 	if node.HasBlankPreviousLines() {
@@ -837,6 +882,13 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 			properties.SetPreviousLineType(content.PreviousLineTypeAutomatic)
 		} else {
 			properties.SetPreviousLineType(content.PreviousLineTypeNonBlank)
+		}
+	}
+
+	// Check if there's a blank line after the properties
+	if nextSibling := node.NextSibling(); nextSibling != nil {
+		if nextSibling.HasBlankPreviousLines() {
+			properties.SetHasBlankLineAfter(true)
 		}
 	}
 

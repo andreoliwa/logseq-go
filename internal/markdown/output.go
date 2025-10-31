@@ -1403,7 +1403,24 @@ func (w *Output) writeBlock(node *content.Block) error {
 	blocks := node.Blocks()
 	if len(blocks) > 0 {
 		if w.out.HasWrittenAtCurrentIndent() {
-			err := w.out.WriteString("\n")
+			// Check if the first block's first child has PreviousLineTypeBlank
+			// to determine if we need an extra newline
+			// The first block of a page contains metadata like aliases and filters, and has a blank line after it.
+			needsBlankLine := false
+			if firstBlock := blocks[0]; firstBlock.FirstChild() != nil {
+				if pla, ok := firstBlock.FirstChild().(content.PreviousLineAware); ok {
+					if pla.PreviousLineType() == content.PreviousLineTypeBlank {
+						needsBlankLine = true
+					}
+				}
+			}
+
+			var err error
+			if needsBlankLine {
+				err = w.out.WriteString("\n\n")
+			} else {
+				err = w.out.WriteString("\n")
+			}
 			if err != nil {
 				return err
 			}
@@ -1462,24 +1479,54 @@ func (w *Output) writeProperties(node *content.Properties) error {
 	}
 
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		if _, ok := child.(*content.Property); !ok {
+		// Handle both Property and Alias nodes
+		if property, ok := child.(*content.Property); ok {
+			err := w.writeRaw(property.Name)
+			if err != nil {
+				return err
+			}
+
+			err = w.writeRaw(":: ")
+			if err != nil {
+				return err
+			}
+
+			err = w.writeChildren(property)
+			if err != nil {
+				return err
+			}
+		} else if alias, ok := child.(*content.Alias); ok {
+			err := w.writeRaw(content.PropertyNameAlias + ":: ")
+			if err != nil {
+				return err
+			}
+
+			// Use OriginalValue if available to preserve exact spacing
+			if alias.OriginalValue != "" {
+				err = w.writeRaw(alias.OriginalValue)
+				if err != nil {
+					return err
+				}
+			} else {
+				// Fallback: write all alias values separated by commas
+				isFirst := true
+				for aliasChild := alias.FirstChild(); aliasChild != nil; aliasChild = aliasChild.NextSibling() {
+					if !isFirst {
+						err = w.writeRaw(",")
+						if err != nil {
+							return err
+						}
+					}
+					isFirst = false
+
+					err = w.Write(aliasChild)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		} else {
 			return fmt.Errorf("unsupported properties child: %T", child)
-		}
-
-		property := child.(*content.Property)
-		err := w.writeRaw(property.Name)
-		if err != nil {
-			return err
-		}
-
-		err = w.writeRaw(":: ")
-		if err != nil {
-			return err
-		}
-
-		err = w.writeChildren(property)
-		if err != nil {
-			return err
 		}
 
 		if child.NextSibling() != nil {
@@ -1489,6 +1536,32 @@ func (w *Output) writeProperties(node *content.Properties) error {
 			}
 		}
 	}
+
+	// Properties at the top of a page should always have a blank line after them,
+	// except when followed by a Paragraph, or when the blank line already exists.
+	// Check if this Properties node is the first child of the root block.
+	if nextSibling := node.NextSibling(); nextSibling != nil && node.PreviousSibling() == nil {
+		// Don't add blank line if next sibling is a Paragraph
+		if _, isParagraph := nextSibling.(*content.Paragraph); isParagraph {
+			goto skipBlankLine
+		}
+
+		// Don't add blank line if it already exists in the original input
+		if node.HasBlankLineAfter() {
+			goto skipBlankLine
+		}
+
+		if parent := node.Parent(); parent != nil {
+			if block, ok := parent.(*content.Block); ok && block.Parent() == nil {
+				// This is a top-level properties block at the start of the page, add blank line
+				err = w.writeRaw("\n")
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+skipBlankLine:
 
 	w.endBlock()
 	return nil
