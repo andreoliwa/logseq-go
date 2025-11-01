@@ -1,3 +1,9 @@
+## [0.4.1](https://github.com/andreoliwa/logseq-go/compare/v0.4.0...v0.4.1) (2025-11-01)
+
+### Bug Fixes
+
+- parse CLOCK in local timezone ([7865e02](https://github.com/andreoliwa/logseq-go/commit/7865e0241db03f3ab6704e237f3ab342a73a1256))
+
 # [0.4.0](https://github.com/andreoliwa/logseq-go/compare/v0.3.1...v0.4.0) (2025-11-01)
 
 ### Features
