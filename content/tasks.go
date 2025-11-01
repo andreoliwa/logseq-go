@@ -297,13 +297,14 @@ var clockEntryRegex = regexp.MustCompile(`^CLOCK: \[([^\]]+)\](?:--\[([^\]]+)\])
 
 // ParseClockEntry parses a CLOCK entry string into a ClockEntryData struct.
 // Returns an error if the format is invalid.
+// Times are parsed in the local timezone since Logseq stores times without timezone information.
 func ParseClockEntry(raw string) (*ClockEntryData, error) {
 	matches := clockEntryRegex.FindStringSubmatch(raw)
 	if matches == nil {
 		return nil, fmt.Errorf("invalid CLOCK entry format: %s", raw)
 	}
 
-	startTime, err := time.Parse(logseqTimeFormat, matches[1])
+	startTime, err := time.ParseInLocation(logseqTimeFormat, matches[1], time.Local)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse start time: %w", err)
 	}
@@ -314,7 +315,7 @@ func ParseClockEntry(raw string) (*ClockEntryData, error) {
 
 	// Parse end time if present (matches[2])
 	if matches[2] != "" {
-		endTime, err := time.Parse(logseqTimeFormat, matches[2])
+		endTime, err := time.ParseInLocation(logseqTimeFormat, matches[2], time.Local)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse end time: %w", err)
 		}

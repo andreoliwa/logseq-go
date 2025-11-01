@@ -69,7 +69,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 	)
 
 	BeforeEach(func() {
-		frozenTime = time.Date(2025, 4, 5, 3, 0, 0, 0, time.UTC)
+		frozenTime = time.Date(2025, 4, 5, 3, 0, 0, 0, time.Local)
 	})
 
 	createTaskWithStatus := func(status content.TaskStatus) *content.TaskMarker {
@@ -236,7 +236,7 @@ var _ = Describe("CLOCK entry parsing", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(entry).ToNot(BeNil())
-			Expect(entry.StartTime).To(Equal(time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC)))
+			Expect(entry.StartTime).To(Equal(time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local)))
 			Expect(entry.EndTime).To(BeNil())
 			Expect(entry.Duration).To(BeNil())
 		})
@@ -247,8 +247,8 @@ var _ = Describe("CLOCK entry parsing", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(entry).ToNot(BeNil())
-			Expect(entry.StartTime).To(Equal(time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC)))
-			Expect(*entry.EndTime).To(Equal(time.Date(2025, 4, 5, 3, 0, 0, 0, time.UTC)))
+			Expect(entry.StartTime).To(Equal(time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local)))
+			Expect(*entry.EndTime).To(Equal(time.Date(2025, 4, 5, 3, 0, 0, 0, time.Local)))
 			Expect(*entry.Duration).To(Equal(2 * time.Hour))
 		})
 
@@ -263,7 +263,7 @@ var _ = Describe("CLOCK entry parsing", func() {
 	Describe("FormatClockEntry", func() {
 		It("should format a running CLOCK entry", func() {
 			entry := &content.ClockEntryData{
-				StartTime: time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
+				StartTime: time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
 			}
 			formatted := content.FormatClockEntry(entry)
 
@@ -271,10 +271,10 @@ var _ = Describe("CLOCK entry parsing", func() {
 		})
 
 		It("should format a completed CLOCK entry", func() {
-			endTime := time.Date(2025, 4, 5, 3, 0, 0, 0, time.UTC)
+			endTime := time.Date(2025, 4, 5, 3, 0, 0, 0, time.Local)
 			duration := 2 * time.Hour
 			entry := &content.ClockEntryData{
-				StartTime: time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
+				StartTime: time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
 				EndTime:   &endTime,
 				Duration:  &duration,
 			}
@@ -304,7 +304,7 @@ var _ = Describe("CLOCK entry parsing", func() {
 	Describe("StopClock", func() {
 		It("should stop a running CLOCK", func() {
 			raw := "CLOCK: [2025-04-05 Sat 01:00:00]"
-			now := time.Date(2025, 4, 5, 3, 0, 0, 0, time.UTC)
+			now := time.Date(2025, 4, 5, 3, 0, 0, 0, time.Local)
 
 			stopped, err := content.StopClock(raw, now)
 
@@ -314,7 +314,7 @@ var _ = Describe("CLOCK entry parsing", func() {
 
 		It("should return error for already stopped CLOCK", func() {
 			raw := "CLOCK: [2025-04-05 Sat 01:00:00]--[2025-04-05 Sat 03:00:00] =>  02:00:00"
-			now := time.Date(2025, 4, 5, 4, 0, 0, 0, time.UTC)
+			now := time.Date(2025, 4, 5, 4, 0, 0, 0, time.Local)
 
 			_, err := content.StopClock(raw, now)
 
@@ -338,62 +338,62 @@ var _ = Describe("CalculateClockDuration and FormatClockEntry", func() {
 			Expect(formatted).To(Equal(expectedFormatted))
 		},
 		Entry("9 seconds",
-			time.Date(2025, 11, 1, 18, 51, 36, 0, time.UTC),
-			time.Date(2025, 11, 1, 18, 51, 45, 0, time.UTC),
+			time.Date(2025, 11, 1, 18, 51, 36, 0, time.Local),
+			time.Date(2025, 11, 1, 18, 51, 45, 0, time.Local),
 			9*time.Second,
 			"CLOCK: [2025-11-01 Sat 18:51:36]--[2025-11-01 Sat 18:51:45] =>  00:00:09",
 		),
 		Entry("1 minute",
-			time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 1, 1, 0, 0, time.UTC),
+			time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
+			time.Date(2025, 4, 5, 1, 1, 0, 0, time.Local),
 			1*time.Minute,
 			"CLOCK: [2025-04-05 Sat 01:00:00]--[2025-04-05 Sat 01:01:00] =>  00:01:00",
 		),
 		Entry("1 hour",
-			time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 2, 0, 0, 0, time.UTC),
+			time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
+			time.Date(2025, 4, 5, 2, 0, 0, 0, time.Local),
 			1*time.Hour,
 			"CLOCK: [2025-04-05 Sat 01:00:00]--[2025-04-05 Sat 02:00:00] =>  01:00:00",
 		),
 		Entry("2 hours",
-			time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 3, 0, 0, 0, time.UTC),
+			time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
+			time.Date(2025, 4, 5, 3, 0, 0, 0, time.Local),
 			2*time.Hour,
 			"CLOCK: [2025-04-05 Sat 01:00:00]--[2025-04-05 Sat 03:00:00] =>  02:00:00",
 		),
 		Entry("1 hour 30 minutes 45 seconds",
-			time.Date(2025, 4, 5, 1, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 2, 30, 45, 0, time.UTC),
+			time.Date(2025, 4, 5, 1, 0, 0, 0, time.Local),
+			time.Date(2025, 4, 5, 2, 30, 45, 0, time.Local),
 			1*time.Hour+30*time.Minute+45*time.Second,
 			"CLOCK: [2025-04-05 Sat 01:00:00]--[2025-04-05 Sat 02:30:45] =>  01:30:45",
 		),
 		Entry("23 hours 59 minutes 59 seconds",
-			time.Date(2025, 4, 5, 0, 0, 0, 0, time.UTC),
-			time.Date(2025, 4, 5, 23, 59, 59, 0, time.UTC),
+			time.Date(2025, 4, 5, 0, 0, 0, 0, time.Local),
+			time.Date(2025, 4, 5, 23, 59, 59, 0, time.Local),
 			23*time.Hour+59*time.Minute+59*time.Second,
 			"CLOCK: [2025-04-05 Sat 00:00:00]--[2025-04-05 Sat 23:59:59] =>  23:59:59",
 		),
 		Entry("1 day",
-			time.Date(2025, 11, 1, 19, 0, 0, 0, time.UTC),
-			time.Date(2025, 11, 2, 19, 0, 0, 0, time.UTC),
+			time.Date(2025, 11, 1, 19, 0, 0, 0, time.Local),
+			time.Date(2025, 11, 2, 19, 0, 0, 0, time.Local),
 			24*time.Hour,
 			"CLOCK: [2025-11-01 Sat 19:00:00]--[2025-11-02 Sun 19:00:00] =>  24:00:00",
 		),
 		Entry("1 week",
-			time.Date(2025, 11, 1, 19, 0, 0, 0, time.UTC),
-			time.Date(2025, 11, 8, 19, 0, 0, 0, time.UTC),
+			time.Date(2025, 11, 1, 19, 0, 0, 0, time.Local),
+			time.Date(2025, 11, 8, 19, 0, 0, 0, time.Local),
 			7*24*time.Hour,
 			"CLOCK: [2025-11-01 Sat 19:00:00]--[2025-11-08 Sat 19:00:00] =>  168:00:00",
 		),
 		Entry("1 month (31 days)",
-			time.Date(2025, 10, 1, 19, 1, 35, 0, time.UTC),
-			time.Date(2025, 11, 1, 19, 1, 52, 0, time.UTC),
-			744*time.Hour+17*time.Second,
-			"CLOCK: [2025-10-01 Wed 19:01:35]--[2025-11-01 Sat 19:01:52] =>  744:00:17",
+			time.Date(2025, 10, 1, 19, 1, 35, 0, time.Local),
+			time.Date(2025, 11, 1, 19, 1, 52, 0, time.Local),
+			745*time.Hour+17*time.Second, // 745 hours due to DST change (Oct 26, 2025)
+			"CLOCK: [2025-10-01 Wed 19:01:35]--[2025-11-01 Sat 19:01:52] =>  745:00:17",
 		),
 		Entry("2 years",
-			time.Date(2023, 11, 1, 19, 3, 0, 0, time.UTC),
-			time.Date(2025, 11, 1, 19, 3, 15, 0, time.UTC),
+			time.Date(2023, 11, 1, 19, 3, 0, 0, time.Local),
+			time.Date(2025, 11, 1, 19, 3, 15, 0, time.Local),
 			17544*time.Hour+15*time.Second,
 			"CLOCK: [2023-11-01 Wed 19:03:00]--[2025-11-01 Sat 19:03:15] =>  17544:00:15",
 		),
