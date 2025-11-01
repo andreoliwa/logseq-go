@@ -1,5 +1,12 @@
 package content
 
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+)
+
 // TaskStatus is the type of task.
 type TaskStatus int
 
@@ -27,16 +34,87 @@ const (
 	TaskStatusWaiting
 )
 
+// TaskCategory represents a category of task statuses.
+// Multiple task statuses can belong to the same category (e.g., DOING, NOW, IN-PROGRESS).
+type TaskCategory int
+
+const (
+	TaskCategoryNone TaskCategory = iota
+	TaskCategoryTodo
+	TaskCategoryDoing
+	TaskCategoryCancelled
+	TaskCategoryWaiting
+	TaskCategoryDone
+)
+
+// taskStatusToCategory maps each TaskStatus to its TaskCategory.
+var taskStatusToCategory = map[TaskStatus]TaskCategory{
+	TaskStatusNone:       TaskCategoryNone,
+	TaskStatusTodo:       TaskCategoryTodo,
+	TaskStatusLater:      TaskCategoryTodo,
+	TaskStatusDoing:      TaskCategoryDoing,
+	TaskStatusNow:        TaskCategoryDoing,
+	TaskStatusInProgress: TaskCategoryDoing,
+	TaskStatusCancelled:  TaskCategoryCancelled,
+	TaskStatusCanceled:   TaskCategoryCancelled,
+	TaskStatusWaiting:    TaskCategoryWaiting,
+	TaskStatusWait:       TaskCategoryWaiting,
+	TaskStatusDone:       TaskCategoryDone,
+}
+
+// Category returns the category of the task status.
+func (t TaskStatus) Category() TaskCategory {
+	if category, ok := taskStatusToCategory[t]; ok {
+		return category
+	}
+	return TaskCategoryNone
+}
+
 type TaskMarker struct {
 	baseNode
 
 	Status TaskStatus
+
+	// parentParagraph is a reference to the parent Paragraph node.
+	// This is set during parsing and used for accessing the parent block.
+	parentParagraph *Paragraph
+
+	// parentBlock is a reference to the grandparent Block node.
+	// This is set during parsing and used for transition side effects.
+	parentBlock *Block
+
+	// timeNow is a function that returns the current time.
+	// This is used for dependency injection in tests.
+	timeNow func() time.Time
 }
 
 func NewTaskMarker(t TaskStatus) *TaskMarker {
 	return &TaskMarker{
-		Status: t,
+		Status:  t,
+		timeNow: time.Now,
 	}
+}
+
+// SetParentReferences stores references to the parent Paragraph and grandparent Block.
+// This is called during parsing to enable transition side effects in WithStatus.
+func (t *TaskMarker) SetParentReferences(paragraph *Paragraph, block *Block) {
+	t.parentParagraph = paragraph
+	t.parentBlock = block
+}
+
+// ParentParagraph returns the parent Paragraph reference.
+func (t *TaskMarker) ParentParagraph() *Paragraph {
+	return t.parentParagraph
+}
+
+// ParentBlock returns the parent Block reference.
+func (t *TaskMarker) ParentBlock() *Block {
+	return t.parentBlock
+}
+
+// SetTimeNow sets the time provider function for testing.
+func (t *TaskMarker) SetTimeNow(timeNow func() time.Time) {
+	t.timeNow = timeNow
 }
 
 // ParseTaskStatus parses a task status from a TO DO/DOING/DONE/etc. string.
@@ -75,10 +153,24 @@ func NewTaskMarkerFromString(t string) *TaskMarker {
 	}
 }
 
-// WithStatus sets the status of the task marker.
-func (t *TaskMarker) WithStatus(status TaskStatus) *TaskMarker {
+// WithStatus sets the status of the task marker and performs any necessary
+// transition side effects (e.g., stopping running clocks, removing properties).
+// Returns an error if the transition fails.
+func (t *TaskMarker) WithStatus(status TaskStatus) (*TaskMarker, error) {
+	oldStatus := t.Status
+
+	// Only execute transitions if we have parent block and status is changing
+	if t.parentBlock != nil && status != oldStatus {
+		if status == TaskStatusTodo {
+			if err := executeTransitionToTodo(oldStatus, t.parentBlock, t.timeNow()); err != nil {
+				return nil, err
+			}
+		}
+		// TODO: Future transitions to other statuses will be added here
+	}
+
 	t.Status = status
-	return t
+	return t, nil
 }
 
 func (t *TaskMarker) debug(p *debugPrinter) {
@@ -118,6 +210,7 @@ func (t *TaskMarker) isInline() {}
 // These are commonly part of a `Block` with a task marker.
 //
 // A logbook node can only contain children of type `LogbookEntry`.
+// TODO: feat: add support for Clock entries in a Logbook and maybe LogbookEntryRaw won't be needed
 type Logbook struct {
 	baseNodeWithChildren
 	previousLineAwareImpl
@@ -185,4 +278,217 @@ func (t *LogbookEntryRaw) isLogbookEntry() {}
 func allowOnlyLogbookEntries(n Node) bool {
 	_, ok := n.(LogbookEntry)
 	return ok
+}
+
+// ClockEntryData represents a parsed CLOCK entry.
+// CLOCK entries remain stored as raw strings in LogbookEntryRaw, but this struct
+// is used for parsing and formatting them.
+type ClockEntryData struct {
+	StartTime time.Time
+	EndTime   *time.Time // nil if clock is running
+	Duration  *time.Duration
+}
+
+// Logseq CLOCK format: "CLOCK: [2023-06-26 Mon 17:25:56]--[2023-06-26 Mon 17:25:58] =>  00:00:01"
+// Running CLOCK format: "CLOCK: [2023-06-26 Mon 17:25:56]"
+const logseqTimeFormat = "2006-01-02 Mon 15:04:05"
+
+var clockEntryRegex = regexp.MustCompile(`^CLOCK: \[([^\]]+)\](?:--\[([^\]]+)\])?(?: => +(.+))?$`)
+
+// ParseClockEntry parses a CLOCK entry string into a ClockEntryData struct.
+// Returns an error if the format is invalid.
+func ParseClockEntry(raw string) (*ClockEntryData, error) {
+	matches := clockEntryRegex.FindStringSubmatch(raw)
+	if matches == nil {
+		return nil, fmt.Errorf("invalid CLOCK entry format: %s", raw)
+	}
+
+	startTime, err := time.Parse(logseqTimeFormat, matches[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse start time: %w", err)
+	}
+
+	entry := &ClockEntryData{
+		StartTime: startTime,
+	}
+
+	// Parse end time if present (matches[2])
+	if matches[2] != "" {
+		endTime, err := time.Parse(logseqTimeFormat, matches[2])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse end time: %w", err)
+		}
+		entry.EndTime = &endTime
+	}
+
+	// Parse duration if present (matches[3])
+	if matches[3] != "" {
+		duration, err := parseDuration(strings.TrimSpace(matches[3]))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse duration: %w", err)
+		}
+		entry.Duration = &duration
+	}
+
+	return entry, nil
+}
+
+// parseDuration parses a duration string in the format "HH:MM:SS".
+func parseDuration(s string) (time.Duration, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 3 {
+		return 0, fmt.Errorf("invalid duration format: %s", s)
+	}
+
+	var hours, minutes, seconds int
+	_, err := fmt.Sscanf(s, "%d:%d:%d", &hours, &minutes, &seconds)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse duration: %w", err)
+	}
+
+	return time.Duration(hours)*time.Hour +
+		time.Duration(minutes)*time.Minute +
+		time.Duration(seconds)*time.Second, nil
+}
+
+// CalculateClockDuration calculates the duration between start and end times.
+// This is useful for calculating CLOCK entry durations.
+func CalculateClockDuration(start, end time.Time) time.Duration {
+	return end.Sub(start)
+}
+
+// FormatClockEntry formats a ClockEntryData struct back into a CLOCK entry string.
+func FormatClockEntry(entry *ClockEntryData) string {
+	result := fmt.Sprintf("CLOCK: [%s]", entry.StartTime.Format(logseqTimeFormat))
+
+	if entry.EndTime != nil {
+		result += fmt.Sprintf("--[%s]", entry.EndTime.Format(logseqTimeFormat))
+
+		if entry.Duration != nil {
+			totalSeconds := int(entry.Duration.Seconds())
+			hours := totalSeconds / 3600
+			minutes := (totalSeconds % 3600) / 60
+			seconds := totalSeconds % 60
+			result += fmt.Sprintf(" =>  %02d:%02d:%02d", hours, minutes, seconds)
+		}
+	}
+
+	return result
+}
+
+// IsRunningClock checks if a CLOCK entry is running (has no end time).
+func IsRunningClock(raw string) bool {
+	entry, err := ParseClockEntry(raw)
+	if err != nil {
+		return false
+	}
+	return entry.EndTime == nil
+}
+
+// StopClock stops a running CLOCK entry by adding the end time and calculating duration.
+// Returns the updated CLOCK entry string.
+func StopClock(raw string, now time.Time) (string, error) {
+	entry, err := ParseClockEntry(raw)
+	if err != nil {
+		return "", err
+	}
+
+	if entry.EndTime != nil {
+		return "", fmt.Errorf("CLOCK entry is not running")
+	}
+
+	entry.EndTime = &now
+	duration := CalculateClockDuration(entry.StartTime, now)
+	entry.Duration = &duration
+
+	return FormatClockEntry(entry), nil
+}
+
+// findLogbookInBlock finds the Logbook node in a Block's children.
+// Returns nil if no Logbook is found.
+func findLogbookInBlock(block *Block) *Logbook {
+	for child := block.FirstChild(); child != nil; child = child.NextSibling() {
+		if logbook, ok := child.(*Logbook); ok {
+			return logbook
+		}
+	}
+	return nil
+}
+
+// stopRunningClockInBlock finds a running CLOCK entry in the block's logbook
+// and stops it by setting the end time and calculating the duration.
+// Returns (true, nil) if a CLOCK entry was stopped.
+// Returns (false, nil) if there was no running CLOCK or no logbook.
+// Returns (false, error) if stopping the CLOCK failed.
+func stopRunningClockInBlock(block *Block, now time.Time) (bool, error) {
+	logbook := findLogbookInBlock(block)
+	if logbook == nil {
+		return false, nil // No logbook, nothing to do
+	}
+
+	// Iterate through logbook entries to find a running CLOCK
+	// TODO: if there are multiple running clocks, this is an invalid state that cannot be fixed automatically
+	for child := logbook.FirstChild(); child != nil; child = child.NextSibling() {
+		entry, ok := child.(*LogbookEntryRaw)
+		if !ok {
+			continue
+		}
+
+		if IsRunningClock(entry.Value) {
+			stoppedClock, err := StopClock(entry.Value, now)
+			if err != nil {
+				return false, fmt.Errorf("failed to stop running CLOCK: %w", err)
+			}
+			entry.Value = stoppedClock
+			return true, nil // Successfully stopped the clock
+		}
+	}
+
+	return false, nil // No running CLOCK found, nothing to do
+}
+
+// removePropertyFromBlock removes a property from the block's properties.
+// Does nothing if the property doesn't exist.
+func removePropertyFromBlock(block *Block, propertyName string) {
+	properties := block.Properties()
+	properties.Remove(propertyName)
+}
+
+// executeTransitionToTodo executes the side effects when transitioning to TODO status.
+// This implements the state machine logic for transitions TO TaskStatusTodo.
+func executeTransitionToTodo(fromStatus TaskStatus, block *Block, now time.Time) error {
+	fromCategory := fromStatus.Category()
+
+	switch fromCategory {
+	case TaskCategoryNone, TaskCategoryTodo, TaskCategoryWaiting:
+		// No action needed for these transitions
+		return nil
+
+	case TaskCategoryDoing:
+		// Stop any running CLOCK entries
+		_, err := stopRunningClockInBlock(block, now)
+		return err
+
+	case TaskCategoryDone:
+		// TODO: feat: read name of completed property from "DONE task property" plugin
+		//  ❯ rg completed ~/.logseq/settings/
+		//  ~/.logseq/settings/logseq-plugin-confirmation-done-task.json
+		//  17:  "customPropertyName": "completed",
+		removePropertyFromBlock(block, "completed")
+		return nil
+
+	case TaskCategoryCancelled:
+		// TODO: feat: read name of cancelled property from "DONE task property" plugin
+		//  ❯ rg cancelled ~/.logseq/settings/
+		//  ~/.logseq/settings/logseq-plugin-confirmation-done-task.json
+		//  29:  "cancelledTaskPropertyName": "cancelled",
+		//  30:  "cancelledTaskTime": false,
+		//  31:  "removePropertyWithoutCANCELLEDtask": true,
+		removePropertyFromBlock(block, "cancelled")
+		return nil
+
+	default:
+		// Unknown category - no action
+		return nil
+	}
 }

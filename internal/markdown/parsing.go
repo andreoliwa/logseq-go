@@ -307,7 +307,7 @@ func convertToBlock(src []byte, node ast.Node) (*content.Block, error) {
 
 			// When converting a block the first paragraph might contain a task marker
 			if p, ok := node.(*content.Paragraph); ok && block.FirstChild() == nil {
-				convertTaskMarker(p)
+				convertTaskMarker(p, block)
 			}
 
 			if !hasParsedBlock {
@@ -378,8 +378,8 @@ func convertToBlock(src []byte, node ast.Node) (*content.Block, error) {
 	return block, nil
 }
 
-func convertTaskMarker(node *content.Paragraph) {
-	textNode, ok := node.FirstChild().(*content.Text)
+func convertTaskMarker(paragraph *content.Paragraph, block *content.Block) {
+	textNode, ok := paragraph.FirstChild().(*content.Text)
 	if !ok {
 		return
 	}
@@ -402,7 +402,10 @@ func convertTaskMarker(node *content.Paragraph) {
 		textNode.RemoveSelf()
 	}
 
-	node.PrependChild(content.NewTaskMarker(taskStatus))
+	taskMarker := content.NewTaskMarker(taskStatus)
+	// Store parent references for use in WithStatus transitions
+	taskMarker.SetParentReferences(paragraph, block)
+	paragraph.PrependChild(taskMarker)
 }
 
 func convertParagraph(src []byte, node *ast.Paragraph) (*content.Paragraph, error) {

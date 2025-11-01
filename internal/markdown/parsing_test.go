@@ -2144,6 +2144,23 @@ var _ = Describe("Parsing", func() {
 				)))
 			})
 
+			It("sets parent references when parsing task markers", func() {
+				block, err := markdown.ParseString("TODO Task with parent refs")
+				Expect(err).ToNot(HaveOccurred())
+
+				// Get the paragraph from the parsed block
+				paragraph, ok := block.FirstChild().(*content.Paragraph)
+				Expect(ok).To(BeTrue(), "First child should be a Paragraph")
+
+				// Get the task marker from the paragraph
+				taskMarker, ok := paragraph.FirstChild().(*content.TaskMarker)
+				Expect(ok).To(BeTrue(), "First child of paragraph should be a TaskMarker")
+
+				// Verify that parent references are set correctly
+				Expect(taskMarker.ParentParagraph()).To(Equal(paragraph), "TaskMarker should have reference to parent Paragraph")
+				Expect(taskMarker.ParentBlock()).To(Equal(block), "TaskMarker should have reference to grandparent Block")
+			})
+
 			It("can parse TODO with prefixed spaces", func() {
 				block, err := markdown.ParseString("   TODO Task")
 				Expect(err).ToNot(HaveOccurred())
