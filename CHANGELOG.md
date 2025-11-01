@@ -1,3 +1,9 @@
+# [0.3.0](https://github.com/andreoliwa/logseq-go/compare/v0.2.2...v0.3.0) (2025-11-01)
+
+### Features
+
+- parse and output the alias property ([c9ef91e](https://github.com/andreoliwa/logseq-go/commit/c9ef91e7d0b0d35b67989fd58afb077faebf0981))
+
 ## [0.2.2](https://github.com/andreoliwa/logseq-go/compare/v0.2.1...v0.2.2) (2025-08-23)
 
 ### Bug Fixes
