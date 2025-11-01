@@ -386,10 +386,10 @@ var _ = Describe("CalculateClockDuration and FormatClockEntry", func() {
 			"CLOCK: [2025-11-01 Sat 19:00:00]--[2025-11-08 Sat 19:00:00] =>  168:00:00",
 		),
 		Entry("1 month (31 days)",
-			time.Date(2025, 10, 1, 19, 1, 35, 0, time.Local),
-			time.Date(2025, 11, 1, 19, 1, 52, 0, time.Local),
-			745*time.Hour+17*time.Second, // 745 hours due to DST change (Oct 26, 2025)
-			"CLOCK: [2025-10-01 Wed 19:01:35]--[2025-11-01 Sat 19:01:52] =>  745:00:17",
+			time.Date(2025, 10, 1, 19, 1, 35, 0, time.UTC),
+			time.Date(2025, 11, 1, 19, 1, 52, 0, time.UTC),
+			744*time.Hour+17*time.Second, // 31 days × 24 hours
+			"CLOCK: [2025-10-01 Wed 19:01:35]--[2025-11-01 Sat 19:01:52] =>  744:00:17",
 		),
 		Entry("2 years",
 			time.Date(2023, 11, 1, 19, 3, 0, 0, time.Local),
