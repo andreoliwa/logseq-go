@@ -1,3 +1,9 @@
+# [0.4.0](https://github.com/andreoliwa/logseq-go/compare/v0.3.1...v0.4.0) (2025-11-01)
+
+### Features
+
+- change any task status to TODO, adjusting the logbook ([50cda14](https://github.com/andreoliwa/logseq-go/commit/50cda14bc5b1395cf1bc0373b62383c7976e3d43))
+
 ## [0.3.1](https://github.com/andreoliwa/logseq-go/compare/v0.3.0...v0.3.1) (2025-11-01)
 
 ### Bug Fixes
