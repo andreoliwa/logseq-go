@@ -31,6 +31,7 @@ type baseNode struct {
 	parent          HasChildren
 	nextSibling     Node
 	previousSibling Node
+	self            Node
 }
 
 func (n *baseNode) Parent() HasChildren {
@@ -65,8 +66,13 @@ func (n *baseNode) RemoveSelf() {
 
 func (n *baseNode) ReplaceWith(node Node) {
 	if n.parent != nil {
-		n.parent.InsertChildBefore(node, n)
-		n.RemoveSelf()
+		if n.self != nil {
+			n.parent.ReplaceChild(n.self, node)
+		} else {
+			// Fallback to old behavior for nodes that don't have self set
+			n.parent.InsertChildBefore(node, n)
+			n.RemoveSelf()
+		}
 	}
 }
 
@@ -323,6 +329,13 @@ func (c *baseNodeWithChildren) ReplaceChild(oldNode Node, newNode Node) bool {
 		newNode.Parent().RemoveChild(newNode)
 	}
 
+	// Preserve PreviousLineType if both nodes support it
+	if oldPLA, ok := oldNode.(PreviousLineAware); ok {
+		if newPLA, ok := newNode.(PreviousLineAware); ok {
+			newPLA.SetPreviousLineType(oldPLA.PreviousLineType())
+		}
+	}
+
 	newNode.setParent(c.self)
 
 	if oldNode.PreviousSibling() == nil {
@@ -397,6 +410,13 @@ func (c *baseNodeWithChildren) InsertChildAfter(node Node, after Node) bool {
 	node.setPreviousSibling(after)
 
 	return true
+}
+
+// ReplaceWith overrides baseNode.ReplaceWith to use the correct self reference
+func (c *baseNodeWithChildren) ReplaceWith(node Node) {
+	if c.parent != nil {
+		c.parent.ReplaceChild(c.self, node)
+	}
 }
 
 var _ HasChildren = (*baseNodeWithChildren)(nil)

@@ -34,6 +34,18 @@ var _ = Describe("Base nodes", func() {
 			Expect(node.Parent()).To(BeNil())
 			Expect(node2.Parent()).To(Equal(parent))
 		})
+
+		It("preserves PreviousLineType when replacing nodes", func() {
+			block := content.NewBlock()
+			oldParagraph := content.NewParagraph(content.NewText("old")).
+				WithPreviousLineType(content.PreviousLineTypeBlank)
+			block.AddChild(oldParagraph)
+
+			newParagraph := content.NewParagraph(content.NewText("new"))
+			oldParagraph.ReplaceWith(newParagraph)
+
+			Expect(newParagraph.PreviousLineType()).To(Equal(content.PreviousLineTypeBlank))
+		})
 	})
 
 	Describe("With children", func() {
