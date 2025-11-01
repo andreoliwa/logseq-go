@@ -1,3 +1,9 @@
+## [0.3.1](https://github.com/andreoliwa/logseq-go/compare/v0.3.0...v0.3.1) (2025-11-01)
+
+### Bug Fixes
+
+- preserve previous line when replacing nodes ([11425b6](https://github.com/andreoliwa/logseq-go/commit/11425b64a6b8968245ef7aa68324f814b5abcb74))
+
 # [0.3.0](https://github.com/andreoliwa/logseq-go/compare/v0.2.2...v0.3.0) (2025-11-01)
 
 ### Features
