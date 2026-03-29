@@ -33,6 +33,40 @@ var _ = Describe("Task status", func() {
 		},
 		Entry("Invalid input", "Invalid"),
 		Entry("Empty input", ""))
+
+	DescribeTable("String() returns the uppercase string representation",
+		func(status content.TaskStatus, expected string) {
+			Expect(status.String()).To(Equal(expected))
+		},
+		Entry("TODO", content.TaskStatusTodo, "TODO"),
+		Entry("DOING", content.TaskStatusDoing, "DOING"),
+		Entry("DONE", content.TaskStatusDone, "DONE"),
+		Entry("LATER", content.TaskStatusLater, "LATER"),
+		Entry("NOW", content.TaskStatusNow, "NOW"),
+		Entry("CANCELLED", content.TaskStatusCancelled, "CANCELLED"),
+		Entry("CANCELED", content.TaskStatusCanceled, "CANCELED"),
+		Entry("IN-PROGRESS", content.TaskStatusInProgress, "IN-PROGRESS"),
+		Entry("WAIT", content.TaskStatusWait, "WAIT"),
+		Entry("WAITING", content.TaskStatusWaiting, "WAITING"),
+		Entry("None", content.TaskStatusNone, ""),
+	)
+
+	It("round-trips through ParseTaskStatus and String()", func() {
+		for _, str := range content.TaskStatusStrings() {
+			status := content.ParseTaskStatus(str)
+			Expect(status.String()).To(Equal(str))
+		}
+	})
+
+	It("TaskStatusStrings returns all non-None statuses", func() {
+		strings := content.TaskStatusStrings()
+		Expect(strings).To(HaveLen(10))
+		Expect(strings).To(ContainElement("TODO"))
+		Expect(strings).To(ContainElement("DOING"))
+		Expect(strings).To(ContainElement("DONE"))
+		Expect(strings).To(ContainElement("WAITING"))
+		Expect(strings).NotTo(ContainElement(""))
+	})
 })
 
 var _ = Describe("Task categories", func() {

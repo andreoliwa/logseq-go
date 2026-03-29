@@ -34,6 +34,56 @@ const (
 	TaskStatusWaiting
 )
 
+// Task status string constants for use in comparisons and content parsing.
+const (
+	TaskStringTodo       = "TODO"
+	TaskStringDoing      = "DOING"
+	TaskStringDone       = "DONE"
+	TaskStringLater      = "LATER"
+	TaskStringNow        = "NOW"
+	TaskStringCancelled  = "CANCELLED"
+	TaskStringCanceled   = "CANCELED"
+	TaskStringInProgress = "IN-PROGRESS"
+	TaskStringWait       = "WAIT"
+	TaskStringWaiting    = "WAITING"
+)
+
+// taskStatusString maps each TaskStatus to its uppercase string representation.
+var taskStatusString = map[TaskStatus]string{
+	TaskStatusNone:       "",
+	TaskStatusTodo:       TaskStringTodo,
+	TaskStatusDoing:      TaskStringDoing,
+	TaskStatusDone:       TaskStringDone,
+	TaskStatusLater:      TaskStringLater,
+	TaskStatusNow:        TaskStringNow,
+	TaskStatusCancelled:  TaskStringCancelled,
+	TaskStatusCanceled:   TaskStringCanceled,
+	TaskStatusInProgress: TaskStringInProgress,
+	TaskStatusWait:       TaskStringWait,
+	TaskStatusWaiting:    TaskStringWaiting,
+}
+
+// String returns the uppercase string representation of the task status (e.g., "DOING", "DONE", etc.).
+// Returns an empty string for TaskStatusNone.
+func (t TaskStatus) String() string {
+	if s, ok := taskStatusString[t]; ok {
+		return s
+	}
+	return ""
+}
+
+// TaskStatusStrings returns all valid task status strings (e.g., "DOING", "DONE", etc.).
+// Excludes TaskStatusNone.
+func TaskStatusStrings() []string {
+	statuses := make([]string, 0, len(taskStatusString)-1)
+	for status, str := range taskStatusString {
+		if status != TaskStatusNone {
+			statuses = append(statuses, str)
+		}
+	}
+	return statuses
+}
+
 // TaskCategory represents a category of task statuses.
 // Multiple task statuses can belong to the same category (e.g., DOING, NOW, IN-PROGRESS).
 type TaskCategory int
@@ -121,25 +171,25 @@ func (t *TaskMarker) SetTimeNow(timeNow func() time.Time) {
 // Logseq only considers uppercase task statuses.
 func ParseTaskStatus(status string) TaskStatus {
 	switch status {
-	case "TODO":
+	case TaskStringTodo:
 		return TaskStatusTodo
-	case "DONE":
+	case TaskStringDone:
 		return TaskStatusDone
-	case "DOING":
+	case TaskStringDoing:
 		return TaskStatusDoing
-	case "LATER":
+	case TaskStringLater:
 		return TaskStatusLater
-	case "NOW":
+	case TaskStringNow:
 		return TaskStatusNow
-	case "CANCELLED":
+	case TaskStringCancelled:
 		return TaskStatusCancelled
-	case "CANCELED":
+	case TaskStringCanceled:
 		return TaskStatusCanceled
-	case "IN-PROGRESS":
+	case TaskStringInProgress:
 		return TaskStatusInProgress
-	case "WAIT":
+	case TaskStringWait:
 		return TaskStatusWait
-	case "WAITING":
+	case TaskStringWaiting:
 		return TaskStatusWaiting
 	default:
 		return TaskStatusNone
