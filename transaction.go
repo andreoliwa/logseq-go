@@ -215,6 +215,10 @@ func (t *Transaction) Save() error {
 			}
 		}
 
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", path, err)
+		}
+
 		err = os.WriteFile(path, []byte(data), 0644)
 		if err != nil {
 			return fmt.Errorf("failed to write page to %s: %w", path, err)

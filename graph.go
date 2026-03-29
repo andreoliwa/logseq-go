@@ -387,9 +387,10 @@ func (g *Graph) watchForChanges() {
 				// Indexing is enabled, update the index and retrieve the page
 				var err error
 				if exists {
-					err = g.index.DeletePage(ctx, path)
-				} else {
 					page, err = g.indexDocument(ctx, path)
+				} else {
+					subPath, _ := filepath.Rel(g.directory, path)
+					err = g.index.DeletePage(ctx, subPath)
 				}
 
 				if err != nil {
@@ -425,7 +426,10 @@ func (g *Graph) watchForChanges() {
 				g.mu.Unlock()
 
 				for _, watcher := range watchers {
-					watcher.changes <- event
+					select {
+					case watcher.changes <- event:
+					case <-watcher.done:
+					}
 				}
 			}
 		}
@@ -609,6 +613,7 @@ func (g *Graph) searchBlocks(ctx context.Context, opts []SearchOption, source pa
 func (g *Graph) Watch() *Watcher {
 	watcher := &Watcher{
 		changes: make(chan ChangeEvent),
+		done:    make(chan struct{}),
 	}
 
 	watcher.closer = func() {
