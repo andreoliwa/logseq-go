@@ -8,6 +8,17 @@ when pages are modified. Please open issues if you find any bugs.
 
 [![codecov](https://codecov.io/github/andreoliwa/logseq-go/graph/badge.svg?token=57MKPZ2UZD)](https://codecov.io/github/andreoliwa/logseq-go)
 
+> [!NOTE]
+> **This is an active fork of [aholstenson/logseq-go](https://github.com/aholstenson/logseq-go).**
+>
+> [Some pull requests](https://github.com/aholstenson/logseq-go/pulls?q=sort%3Aupdated-desc+is%3Apr+is%3Aopen+author%3Aandreoliwa)
+> were opened in December 2024, and a follow-up email was sent in July 2025, but neither received a
+> response.
+>
+> This fork continues development independently and includes all features from the original
+> plus additional improvements.
+> You can download it from [Go Packages](https://pkg.go.dev/github.com/andreoliwa/logseq-go) with `go get github.com/andreoliwa/logseq-go`.
+
 ## Features
 
 - Read and write journals and pages

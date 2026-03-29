@@ -16,7 +16,7 @@ repos:
         language: system
         entry: bash -c 'grep -r aholstenson "$@" && exit 1 || exit 0' --
         types: [text]
-        exclude: '^go\.sum$|^\.pre-commit-config\.yaml$'
+        exclude: '^go\.sum$|^\.pre-commit-config\.yaml$|^README\.md$'
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
