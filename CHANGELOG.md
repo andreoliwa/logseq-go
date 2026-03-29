@@ -1,3 +1,9 @@
+# [1.2.0](https://github.com/andreoliwa/logseq-go/compare/v1.1.0...v1.2.0) (2026-03-29)
+
+### Features
+
+- String constants for all Task statuses ([3ca90e8](https://github.com/andreoliwa/logseq-go/commit/3ca90e87801f765e5643541d37c40902db1ecae1))
+
 # [1.1.0](https://github.com/andreoliwa/logseq-go/compare/v1.0.1...v1.1.0) (2026-03-29)
 
 ### Bug Fixes
