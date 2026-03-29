@@ -8,6 +8,16 @@ ci:
   autoupdate_commit_msg: "chore(deps): pre-commit autoupdate"
 
 repos:
+  # TODO: build: remove this hook once this fork is merged into upstream
+  - repo: local
+    hooks:
+      - id: find-upstream-references
+        name: Find upstream references
+        language: system
+        entry: bash -c 'grep -r aholstenson "$@" && exit 1 || exit 0' --
+        types: [text]
+        exclude: '^go\.sum$|^\.pre-commit-config\.yaml$'
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

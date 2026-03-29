@@ -7,18 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	"github.com/andreoliwa/logseq-go"
 	"github.com/andreoliwa/logseq-go/content"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-func TestTransaction(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Transaction Suite")
-}
 
 var _ = Describe("Transaction", func() {
 	var (

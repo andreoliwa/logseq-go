@@ -311,14 +311,19 @@ func (g *Graph) watchForChanges() {
 	}
 
 	changes := make(chan string)
+	changesDone := make(chan struct{})
 	changeTimers := make(map[string]*time.Timer)
 	var mu sync.Mutex
+
+	// Capture the watcher value to avoid a data race with the field being
+	// nilled in watcher.closer (which runs under g.mu).
+	fsWatcher := changeWatcher
 
 	go func() {
 	_outer:
 		for {
 			select {
-			case event, ok := <-g.changeWatcher.Events:
+			case event, ok := <-fsWatcher.Events:
 				if !ok {
 					break _outer
 				}
@@ -346,10 +351,15 @@ func (g *Graph) watchForChanges() {
 					delete(changeTimers, path)
 					mu.Unlock()
 
-					changes <- path
+					// Use changesDone to avoid sending on a closed channel if
+					// the watcher shuts down while the timer is in flight.
+					select {
+					case changes <- path:
+					case <-changesDone:
+					}
 				})
 				mu.Unlock()
-			case _, ok := <-g.changeWatcher.Errors:
+			case _, ok := <-fsWatcher.Errors:
 				if !ok {
 					break _outer
 				}
@@ -358,18 +368,26 @@ func (g *Graph) watchForChanges() {
 			}
 		}
 
-		// When the watcher is closed remove all of the current timers
+		// When the watcher is closed remove all of the current timers.
+		// Close changesDone first (without holding mu) so any in-flight
+		// timer callbacks can exit cleanly before we stop the timers.
+		close(changesDone)
 		mu.Lock()
 		defer mu.Unlock()
 		for _, timer := range changeTimers {
 			timer.Stop()
 		}
-		close(changes)
 	}()
 
 	go func() {
 		ctx := context.Background()
-		for path := range changes {
+		for {
+			var path string
+			select {
+			case path = <-changes:
+			case <-changesDone:
+				return
+			}
 			// Figure out if the page still exists
 			exists := true
 			_, err := os.Stat(path)
