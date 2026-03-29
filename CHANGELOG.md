@@ -1,3 +1,19 @@
+# [1.1.0](https://github.com/andreoliwa/logseq-go/compare/v1.0.1...v1.1.0) (2026-03-29)
+
+### Bug Fixes
+
+- DeletePage now correctly handles relative paths ([494dafc](https://github.com/andreoliwa/logseq-go/commit/494dafcce4f5d6f25960534facfb98c0fedd9f50))
+- Ensure journal date is truncated to midnight to avoid timezone issues ([69cfa37](https://github.com/andreoliwa/logseq-go/commit/69cfa3737dd8a535fe44d6f6298b5abf55b75a98))
+- Graph watcher reported delete page when page was just updated ([89bc477](https://github.com/andreoliwa/logseq-go/commit/89bc4771c9f4cbd652a36b9ff1cde9b5d60e9ad8))
+- update module paths and resolve races after upstream sync ([15b0396](https://github.com/andreoliwa/logseq-go/commit/15b039671a32e9264a03a7c141a020bca3d66f3a))
+- Various small search fixes and tests ([8e42a0b](https://github.com/andreoliwa/logseq-go/commit/8e42a0b6dbedcab965148e926032beb56b702939))
+
+### Features
+
+- Add TitlePartiallyMatches for index ([e18debd](https://github.com/andreoliwa/logseq-go/commit/e18debd9a93eb3edcdf14ad27a196dcc51ee09ae))
+- AsString helper added for nodes ([7379045](https://github.com/andreoliwa/logseq-go/commit/7379045e065c688042428ab30fb1a1371393ee35))
+- serialize content to Markdown ([7bfceab](https://github.com/andreoliwa/logseq-go/commit/7bfceabfdd4436dac3f5c63f128ef6fc63142caf))
+
 ## [0.4.1](https://github.com/andreoliwa/logseq-go/compare/v0.4.0...v0.4.1) (2025-11-01)
 
 ### Bug Fixes
