@@ -2492,3 +2492,67 @@ var _ = Describe("Parsing", func() {
 		})
 	})
 })
+
+var _ = Describe("Source ranges", func() {
+	It("keeps each root subtree in its exact source slice", func() {
+		prefix := "title:: Timeline\r\n\r\n"
+		first := "- **9h00** Café \\~literal\r\n  id:: 123\r\n  continuation [literal]\r\n\t- child\r\n\t  ```text\r\n\t  - not a root\r\n\t  ```\r\n\r\n"
+		second := "- 11:00 Later\n  - detail\n"
+		source := prefix + first + second
+		root, ranges, outlined, err := markdown.ParseSource(source)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outlined).To(BeTrue())
+		Expect(ranges).To(HaveLen(2))
+		Expect(ranges[0].Start).To(Equal(len(prefix)))
+		Expect(ranges[0].End).To(Equal(len(prefix + first)))
+		Expect(source[ranges[0].Start:ranges[0].End]).To(Equal(first))
+		Expect(source[ranges[1].Start:ranges[1].End]).To(Equal(second))
+		Expect(ranges[0].Block).To(BeIdenticalTo(root.FirstChild().NextSibling()))
+		Expect(ranges[1].Block).To(BeIdenticalTo(root.LastChild()))
+		Expect(ranges[0].Block.Children()).To(ContainElement(BeAssignableToTypeOf(content.NewBlock())))
+	})
+	DescribeTable("distinguishes outlines from single-block input",
+		func(source string, want bool, count int) {
+			_, ranges, outlined, err := markdown.ParseSource(source)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(outlined).To(Equal(want))
+			Expect(ranges).To(HaveLen(count))
+		},
+		Entry("empty", "", false, 0),
+		Entry("whitespace", " \r\n", false, 0),
+		Entry("plain with child", "09:00 Call\n\nDetails\n  - child", false, 1),
+		Entry("fenced fake outline", "```\n- not a root\n```", false, 0),
+		Entry("other unordered list", "* item\n* other", false, 0),
+		Entry("empty blocks", "-\n- \n- 10:00 Last", true, 3),
+		Entry("indented roots", "  - 09:00 One\n    - child\n  - 10:00 Two", true, 2),
+		Entry("trailing supporting paragraph", "- 09:00 One\n\nSupporting paragraph", true, 1),
+		Entry("leading blank lines", "\r\n\n- 09:00 One", true, 1),
+	)
+})
+
+var _ = Describe("Source prefix and suffix ownership", func() {
+	It("retains prose prefixes separately and trailing supporting lines in the last slice", func() {
+		source := "Journal introduction\n\n- 09:00 First\n\n- 10:00 Second\n\nTrailing detail"
+		_, ranges, outlined, err := markdown.ParseSource(source)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outlined).To(BeFalse())
+		Expect(ranges).To(HaveLen(2))
+		Expect(source[:ranges[0].Start]).To(Equal("Journal introduction\n\n"))
+		Expect(source[ranges[0].Start:ranges[0].End]).To(Equal("- 09:00 First\n\n"))
+		Expect(source[ranges[1].Start:ranges[1].End]).To(Equal("- 10:00 Second\n\nTrailing detail"))
+	})
+})
+
+var _ = Describe("Source range failures", func() {
+	DescribeTable("retains outline classification when the converter synthesizes root blocks",
+		func(source string, want bool) {
+			root, ranges, outlined, err := markdown.ParseSource(source)
+			Expect(err).To(HaveOccurred())
+			Expect(root).NotTo(BeNil())
+			Expect(ranges).To(BeEmpty())
+			Expect(outlined).To(Equal(want))
+		},
+		Entry("explicit outline", "- One\n\n---\n\n- Two", true),
+		Entry("single-block prose prefix", "Introduction\n\n- One\n\n---\n\n- Two", false),
+	)
+})

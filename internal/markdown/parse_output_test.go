@@ -230,3 +230,27 @@ var _ = Describe("Source-preserving leading times", func() {
 	FullyEqual("Shared formatting and continuation", "*9;00 Meeting*\n10h00 Follow-up")
 	FullyEqual("Time child", "- Notes\n\t- **9H00 Meeting**")
 })
+
+var _ = Describe("Source parsing then outputting", func() {
+	It("keeps ordinary outline output and clock entries unchanged", func() {
+		source := "- DOING **9h00** Meeting\n  id:: 123\n  :LOGBOOK:\n  CLOCK: [2026-10-15 Thu 09:00:00]\n  :END:\n\t- child\n- 11h00 Later"
+		block, ranges, outlined, err := markdown.ParseSource(source)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outlined).To(BeTrue())
+		Expect(ranges).To(HaveLen(2))
+		output, err := markdown.AsString(block)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(output).To(Equal(source))
+		Expect(parseAndOutput(source)).To(Equal(source))
+	})
+	It("does not let source tracking change escaped tilde parsing", func() {
+		source := "- 9h00 literal \\~word\\~\n- 11h00 Later"
+		block, ranges, outlined, err := markdown.ParseSource(source)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outlined).To(BeTrue())
+		Expect(source[ranges[1].Start:ranges[1].End]).To(Equal("- 11h00 Later"))
+		output, err := markdown.AsString(block)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(output).To(Equal(parseAndOutput(source)))
+	})
+})

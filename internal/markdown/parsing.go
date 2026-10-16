@@ -26,7 +26,7 @@ func init() {
 		parser.WithBlockParsers(
 			util.Prioritized(parser.NewThematicBreakParser(), 200),
 			util.Prioritized(parser.NewListParser(), 300),
-			util.Prioritized(parser.NewListItemParser(), 400),
+			util.Prioritized(&sourceListItemParser{parser.NewListItemParser()}, 400),
 			util.Prioritized(parser.NewCodeBlockParser(), 500),
 			util.Prioritized(parser.NewATXHeadingParser(), 600),
 			util.Prioritized(parser.NewFencedCodeBlockParser(), 700),

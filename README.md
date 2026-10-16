@@ -110,3 +110,23 @@ children and continuation lines. Neither operation searches sentence interiors,
 links, code, properties, logbooks or child blocks. Invalid, absent and already
 plain canonical times cause no normalization change. Ordinary parsing and output
 do not normalize times.
+
+## Raw outline source ranges
+
+`logseq.ParseSource(source)` returns the parsed root block, a slice of
+`logseq.BlockSourceRange`, an `outlined` flag, and an error. Each range has
+`Block`, `Start`, and `End` fields. `Block` is the actual parsed root child;
+`source[Start:End]` retains its original bytes, metadata, continuation lines,
+children, fences, whitespace, and line endings. Ranges end at the next root
+block's line start or the end of the source. They do not serialize or normalize
+content.
+
+Only dash lists are Logseq outlines, matching `ParseBlock`. Other list markers
+remain ordinary Markdown lists. `outlined` is true when the source starts with
+an explicit outline, allowing whitespace and page properties before it. Plain
+prose before an outline makes it false, but ranges still identify later root
+blocks. Unbulleted input has no ranges. Preserve `source[:ranges[0].Start]`
+separately as the page prefix when ranges are present. Source-tracking failures
+return an error rather than uncertain offsets. On range errors, the parsed
+root and `outlined` flag remain available with nil ranges, so single-block
+consumers can retain ordinary parsing behavior when `outlined` is false.
