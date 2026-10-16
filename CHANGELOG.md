@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/andreoliwa/logseq-go/compare/v1.2.0...v1.3.0) (2026-10-16)
+
+### Features
+
+- **content:** add leading time recognition and normalization ([6f026fe](https://github.com/andreoliwa/logseq-go/commit/6f026fee3095c1adc419441a759eb5e6f374bf1b))
+- **markdown:** expose raw outline source ranges ([9b8dc9a](https://github.com/andreoliwa/logseq-go/commit/9b8dc9a7f479d80a623d9511fa08857540fc38db))
+
 # [1.2.0](https://github.com/andreoliwa/logseq-go/compare/v1.1.0...v1.2.0) (2026-03-29)
 
 ### Features
