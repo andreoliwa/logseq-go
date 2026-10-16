@@ -76,3 +76,37 @@ that is causing the issue.
 ## License
 
 This project is licensed under the MIT license, see [LICENSE](LICENSE).
+
+## Leading times
+
+Use the parsed content API to compare first-line times without changing their
+source spelling or formatting:
+
+```go
+block, err := logseq.ParseBlock("TODO [#B] **9h00** Meeting")
+if err != nil {
+  return err
+}
+if clock, ok := content.LeadingTime(block); ok {
+  fmt.Println(clock.Hour(), clock.Minute(), clock.Minutes()) // 9 0 540
+}
+original, err := logseq.AsString(block) // TODO [#B] **9h00** Meeting
+
+changed := content.NormalizeLeadingTime(block) // true
+normalized, err := logseq.AsString(block) // TODO [#B] 09:00 Meeting
+changed = content.NormalizeLeadingTime(block) // false
+```
+
+`content.NewTimeOfDay(hour, minute)` validates values; `String()` renders
+`hh:mm`. Recognition accepts one or two hour digits, two minute digits, and
+`:`, `h`, `H`, `.`, `,`, or `;`. Values must be in 00:00 through 23:59 and end
+at whitespace or the end of the first line. Optional task and priority markers
+may precede the time. Bold and italic wrappers around the time or the time and
+description are supported.
+
+Normalization is explicit. For example, `**9h00 Meeting**` becomes
+`09:00 **Meeting**`. It preserves formatting outside the time, metadata,
+children and continuation lines. Neither operation searches sentence interiors,
+links, code, properties, logbooks or child blocks. Invalid, absent and already
+plain canonical times cause no normalization change. Ordinary parsing and output
+do not normalize times.

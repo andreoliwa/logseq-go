@@ -224,3 +224,9 @@ var _ = Describe("Parsing then outputting", func() {
 		FullyEqual("Space before and after", "[ #C ] Before and after")
 	})
 })
+
+var _ = Describe("Source-preserving leading times", func() {
+	FullyEqual("Time spelling and formatting", "TODO [#B] **9h00** Meeting")
+	FullyEqual("Shared formatting and continuation", "*9;00 Meeting*\n10h00 Follow-up")
+	FullyEqual("Time child", "- Notes\n\t- **9H00 Meeting**")
+})
