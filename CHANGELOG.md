@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.4.0](https://github.com/andreoliwa/logseq-go/compare/v1.3.0...v1.4.0) (2026-10-17)
+
+### Bug Fixes
+
+- Property blocks at start of page no longer break indexing ([9feed0b](https://github.com/andreoliwa/logseq-go/commit/9feed0ba5dad799ed8130908814aeba43c36462f))
+- Saving a page keeps the file's trailing newline ([d27ca1a](https://github.com/andreoliwa/logseq-go/commit/d27ca1a52856a1444fdddb9e4109ec4fe49cda47))
+- Pages that mix properties and prose without bullets keep their bare form ([900423e](https://github.com/andreoliwa/logseq-go/commit/900423e1d22f9dfebee4f9f504a302cfc2e04625))
+- Closing a graph while changes are being indexed no longer crashes ([c04ef84](https://github.com/andreoliwa/logseq-go/commit/c04ef847f1fe4760991e04d95d3dd8fa0248b2e9))
+- Empty query macro no longer panics when parsing ([cf40a4c](https://github.com/andreoliwa/logseq-go/commit/cf40a4c6624c83a7419116f88fc4277cd8ed49ab))
+- Macro with three curly braces and a missing brace no longer panics ([bf586bd](https://github.com/andreoliwa/logseq-go/commit/bf586bd6600bd8c55a245578f5b66c3aaa32f440))
+- Journals resolve to the right day in zones behind UTC ([d57a7c8](https://github.com/andreoliwa/logseq-go/commit/d57a7c85009c0289ec16f4f37eab30da8e7eb8c8))
+- Journals opened in a transaction are saved to the file they came from ([6e9b67e](https://github.com/andreoliwa/logseq-go/commit/6e9b67e7fa05a42e35e363a1472f9e2c55010761))
+- Hash followed by a space is no longer parsed as a tag ([b05dbd0](https://github.com/andreoliwa/logseq-go/commit/b05dbd03bc48e4f774b12cc06639896ab6f02a18))
+- Task marker on its own no longer written twice ([20476f4](https://github.com/andreoliwa/logseq-go/commit/20476f4939184558c2396c090658fb4524a2f9da))
+- Code spans containing backticks are written so they can be read back ([0a48197](https://github.com/andreoliwa/logseq-go/commit/0a4819775fc92562edcc9ac1c2a2b0661753d012))
+- Full weekday and month names in date formats convert correctly ([e525b89](https://github.com/andreoliwa/logseq-go/commit/e525b89b1bbe9f967ccf15d0c1b533e4c6db0877))
+- Pages containing raw text can be saved and searched ([7f0178a](https://github.com/andreoliwa/logseq-go/commit/7f0178a360b5991dc5250461f79af74e4c85a1b1))
+- Setting children detaches all of the previous ones ([f58863f](https://github.com/andreoliwa/logseq-go/commit/f58863fe72f754f3b0f9294a118357ca72949d52))
+- Closing a watcher no longer stops the index being updated ([1a1d356](https://github.com/andreoliwa/logseq-go/commit/1a1d356a30640b5fa262dee9236a44fc8ac6027a))
+- Nodes that are not allowed as children are rejected everywhere ([e8ed320](https://github.com/andreoliwa/logseq-go/commit/e8ed320d391769408d5fa6c8c74e252eb95fced9))
+- Unknown list marker no longer kept as the marker of the list ([e30e45b](https://github.com/andreoliwa/logseq-go/commit/e30e45b108bc2a67c1e76cc4c15c5e33ac093c9c))
+- Closing a watcher twice no longer panics ([92d5594](https://github.com/andreoliwa/logseq-go/commit/92d55941a04351f00533f0ffa8efccca3f4d393b))
+- Model task priorities and stop escaping their brackets ([f075595](https://github.com/andreoliwa/logseq-go/commit/f0755952e0b5d2d8c03431ddf9bf8842b544e5de))
+- Keep the whole value when parsing properties ([b8c24e4](https://github.com/andreoliwa/logseq-go/commit/b8c24e43f3f1bfad52069f50c651aaca0493fd03))
+- Write the ordinal day in journal titles so they match Logseq ([b1279c3](https://github.com/andreoliwa/logseq-go/commit/b1279c3e16142310d17e33f01158a030d2139944))
+- Skip Markdown files that are not pages or journals when syncing ([90cfe6d](https://github.com/andreoliwa/logseq-go/commit/90cfe6d31bde2a855a9ac2cfb78287c325e16fb8))
+- **release:** Include upstream commits in proposed changelogs ([5c2df17](https://github.com/andreoliwa/logseq-go/commit/5c2df173e2c0aaa7f6fc08731d45c75533e71c40))
+- **release:** Format compact entries with GitHub usernames ([97354e0](https://github.com/andreoliwa/logseq-go/commit/97354e0cbc09a9472c2d8fce7b148814b846d20e))
+- **release:** Omit author labels from changelog entries ([0e5c63c](https://github.com/andreoliwa/logseq-go/commit/0e5c63c5c89ca0d004c655fa04cc771f6d6ed080))
+
+### Documentation
+
+- **release:** Document direct master development ([08d8888](https://github.com/andreoliwa/logseq-go/commit/08d88883def055b374d39fb5e53d3ca0bebe0fc5))
+
+### Features
+
+- **release:** Add event-scoped release notes ([1653c3a](https://github.com/andreoliwa/logseq-go/commit/1653c3a29898a12faca592abb18cf2d874bed9bf))
+- **release:** Adopt Release Please for reviewed releases ([29a0850](https://github.com/andreoliwa/logseq-go/commit/29a0850ca7e83c9ac48054f788bf24fe9c151310))
+- Model SCHEDULED and DEADLINE dates on tasks ([1e6f25d](https://github.com/andreoliwa/logseq-go/commit/1e6f25d4f5809ecb96a1c994bf398ce0c9906909))
+- Model clock and state change entries in logbooks ([a46b150](https://github.com/andreoliwa/logseq-go/commit/a46b15003d436d89f318a86b3b2980e898b45652))
+- Rename and delete pages, with reference rewriting ([0235017](https://github.com/andreoliwa/logseq-go/commit/02350177230d2416b7b55e6723d24c81f7686ff1))
+- Resolve blocks by their id ([fff8fd4](https://github.com/andreoliwa/logseq-go/commit/fff8fd4e44ae3e768f4ff242c7dbb87192006a4d))
+- Find the linked references of a page ([a969334](https://github.com/andreoliwa/logseq-go/commit/a969334c95112cc4907f78438a11f46136ffc1de))
+- Resolve pages by their aliases ([18ed5a4](https://github.com/andreoliwa/logseq-go/commit/18ed5a4d20a0bf53fbd98c04b2633514e09e7c86))
+- Model the namespaces that pages are in ([19946aa](https://github.com/andreoliwa/logseq-go/commit/19946aa98efcb86418004f9134097d8156678fd8))
+- Rename the pages in a namespace with the page ([673c4d2](https://github.com/andreoliwa/logseq-go/commit/673c4d2e26bfd22c5cc9a92a8126c95c346fa9bc))
+- Read and use more of the Logseq config ([af06822](https://github.com/andreoliwa/logseq-go/commit/af0682241e73375ab3d4a30ec02cd5899b103f56))
+- Honor :with-second-support? when writing and parsing logbooks ([a6c1e92](https://github.com/andreoliwa/logseq-go/commit/a6c1e92d9a75cc44a0806c91a625cedbfd8cf506))
+- Apply :property/separated-by-commas and :ignored-page-references-keywords when parsing ([241c3ed](https://github.com/andreoliwa/logseq-go/commit/241c3edabe4418f5aeae7061ab1026f52f749b41))
+- Read and write ^^highlights^^ ([a039d26](https://github.com/andreoliwa/logseq-go/commit/a039d26909f754a8026f60e1cbef8363c52e15b9))
+- Read and write GFM tables ([7ab5f93](https://github.com/andreoliwa/logseq-go/commit/7ab5f93f1c50767ffdb5a69171d5aead0f3d63a9))
+- Read and write LaTeX formulas ([cd5a77c](https://github.com/andreoliwa/logseq-go/commit/cd5a77c65f8671ae2281c67a61af86855e85b262))
+- Read and write footnotes ([1cc097e](https://github.com/andreoliwa/logseq-go/commit/1cc097e4d1e36d5f28a02d24d4c834c005e3d194))
+- **logseq:** Integrate upstream capabilities compatibly ([8b73b27](https://github.com/andreoliwa/logseq-go/commit/8b73b27b344b416a305a90ca1a53d53087bba49c))
+
 ## [1.3.0](https://github.com/andreoliwa/logseq-go/compare/v1.2.0...v1.3.0) (2026-10-16)
 
 ### Features
