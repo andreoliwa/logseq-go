@@ -3,8 +3,8 @@ body = """
 ## What's Changed
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group }}
-{% for commit in commits %}
-- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/andreoliwa/logseq-go/commit/{{ commit.id }})) - {{ commit.author.name }}
+{% for commit in commits -%}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/andreoliwa/logseq-go/commit/{{ commit.id }}){% if commit.github.username %} - {{ commit.github.username }}{% endif %})
 {% endfor %}
 {% endfor %}
 """
