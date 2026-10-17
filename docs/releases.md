@@ -30,9 +30,11 @@ major. Finish compatible integration on v1 before a separate reviewed v2 change.
 
 ## Activation requires approval
 
-Local commits are allowed for the current migration. Do not push, change secrets
-or settings, run remote workflows, merge remote PRs or publish without separate
-approval. The upstream merge waits until release automation is activated and a
+Work sequentially in the existing checkout on local `master`; local commits
+there are authorized. Do not create source PRs, feature branches or parallel
+feature worktrees. The user performs every push of `master`; the assistant never
+pushes and asks the user when a push is needed. Changes to secrets/settings,
+manual remote workflow runs and publication require separate approval. The upstream merge waits until release automation is activated and a
 draft release PR with its required checks is verified.
 
 With approval, install the workflow on `master`. The `Release` environment must
@@ -74,7 +76,7 @@ release tools' dry-run flags prevent API writes.
 
 ## Rollback
 
-Before remote activation, abandon the local release branch without altering the
-original checkout. After shared commits, use a reviewed corrective commit rather
-than rewriting history. Never restore the retired publisher alongside Release
+Use reviewed corrective commits on master rather than discarding local work or
+rewriting history. Abort an unfinished merge only after verifying that no unrelated
+edits will be lost. Never restore the retired publisher alongside Release
 Please, move an existing release tag or publish a version just to test rollback.
