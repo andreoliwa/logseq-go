@@ -1,7 +1,10 @@
 # Releases
 
 Release Please prepares draft release PRs on `master`. It owns version selection,
-CHANGELOG.md updates, the version manifest, tags and GitHub Releases. This Go
+the version manifest, tags and GitHub Releases. Git-cliff fills the proposed
+CHANGELOG.md entry from the full Git ancestry range before review, so imported
+upstream features and fixes appear individually even when their commits are old.
+It preserves the proposed version, release heading and all historical entries. This Go
 library publishes no executable archives. Semantic-release and GoReleaser are
 retired; do not enable a second publisher.
 

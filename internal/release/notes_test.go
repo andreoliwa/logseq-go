@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,9 +34,26 @@ var _ = BeforeSuite(func() {
 	script, err = filepath.Abs("../../scripts/release-notes.sh")
 	Expect(err).NotTo(HaveOccurred())
 	repo = GinkgoT().TempDir()
-	cliff = filepath.Join(GinkgoT().TempDir(), "git-cliff")
+	toolsDir := GinkgoT().TempDir()
+	cliff = filepath.Join(toolsDir, "git-cliff")
+	if runtime.GOOS == "windows" {
+		cliff += ".exe"
+	}
+	// A native executable works for both Bash and Node callers on every CI OS.
 	// Render the selected real Git range without a network or GitHub API call.
-	Expect(os.WriteFile(cliff, []byte("#!/bin/bash\nset -eu\nfor range; do :; done\ngit log --format='%s' \"$range\"\n"), 0700)).To(Succeed())
+	stub := filepath.Join(toolsDir, "cliff.go")
+	Expect(os.WriteFile(stub, []byte(`package main
+import ("os"; "os/exec")
+func main() {
+    args := os.Args
+    cmd := exec.Command("git", "log", "--format=%s", args[len(args)-1])
+    cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+    if cmd.Run() != nil { os.Exit(1) }
+}
+`), 0600)).To(Succeed())
+	build := exec.Command("go", "build", "-o", cliff, stub)
+	out, err := build.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
 	run("init", "-b", "master")
 
 	// Import a fixed DAG in one reference transaction. Fixtures need neither
@@ -43,7 +61,16 @@ var _ = BeforeSuite(func() {
 	var fixture strings.Builder
 	commit := func(branch string, mark, timestamp int, message, parents string) {
 		message += "\n"
-		fmt.Fprintf(&fixture, "commit refs/heads/%s\nmark :%d\ncommitter Fixture Author <fixture@example.com> %d +0000\ndata %d\n%s%s\n", branch, mark, timestamp, len(message), message, parents)
+		fmt.Fprintf(&fixture, "commit refs/heads/%s\nmark :%d\ncommitter Fixture Author <fixture@example.com> %d +0000\ndata %d\n%s%s", branch, mark, timestamp, len(message), message, parents)
+		if mark == 1 {
+			for path, data := range map[string]string{
+				".release-please-manifest.json": "{\".\":\"1.2.0\"}\n",
+				"CHANGELOG.md":                  "# Changelog\n\n## [1.2.0](https://example.com/v1.2.0) (2025-01-01)\n\n### Features\n\n- Historical text [link](https://example.com/old)\n",
+			} {
+				fmt.Fprintf(&fixture, "M 100644 inline %s\ndata %d\n%s", path, len(data), data)
+			}
+		}
+		fixture.WriteString("\n")
 	}
 	commit("baseline", 1, 1735732800, "feat: baseline", "")
 	commit("incoming", 2, 1577880000, "feat: old imported capability", "from :1\n")
@@ -60,7 +87,7 @@ var _ = BeforeSuite(func() {
 	cmd := exec.Command("git", "fast-import", "--quiet")
 	cmd.Dir = repo
 	cmd.Stdin = strings.NewReader(fixture.String())
-	out, err := cmd.CombinedOutput()
+	out, err = cmd.CombinedOutput()
 	Expect(err).NotTo(HaveOccurred(), string(out))
 })
 
