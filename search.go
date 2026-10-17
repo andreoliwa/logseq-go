@@ -61,6 +61,35 @@ func WithQuery(q Query) SearchOption {
 	}
 }
 
+// eachResult goes through every result of a search, fetching them in batches so
+// that searches with more results than are wanted in memory at once can be
+// walked through.
+func eachResult[V any](search func(opts indexing.SearchOptions) (indexing.SearchResults[V], error), each func(V)) error {
+	const batchSize = 500
+
+	for from := 0; ; from += batchSize {
+		results, err := search(indexing.SearchOptions{
+			Size: batchSize,
+			From: from,
+		})
+		if err != nil {
+			return err
+		}
+
+		if results.Size() == 0 {
+			return nil
+		}
+
+		for _, result := range results.Results() {
+			each(result)
+		}
+
+		if from+results.Size() >= results.Count() {
+			return nil
+		}
+	}
+}
+
 type searchResultsImpl[R any] struct {
 	size    int
 	count   int
@@ -198,9 +227,14 @@ func (b *blockResultImpl) Open() (*content.Block, Page, error) {
 		return nil, nil, err
 	}
 
+	blocks := page.Blocks()
+	if navigation, ok := page.(PageNavigation); ok {
+		blocks = navigation.ContentBlocks()
+	}
+
 	if b.id != "" {
 		// We have a stable identifier, use that to find the block
-		block := page.Blocks().FindDeep(func(block *content.Block) bool {
+		block := blocks.FindDeep(func(block *content.Block) bool {
 			return b.id == block.ID()
 		})
 
@@ -212,7 +246,6 @@ func (b *blockResultImpl) Open() (*content.Block, Page, error) {
 	}
 
 	// No stable id, walk the location and return the block
-	blocks := page.Blocks()
 	var block *content.Block
 	for _, i := range b.location {
 		if i >= len(blocks) {

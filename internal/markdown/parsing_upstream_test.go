@@ -1,0 +1,3103 @@
+package markdown_test
+
+import (
+	"time"
+
+	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/internal/tests"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("Parsing", func() {
+	Describe("Basic content", func() {
+		It("can parse text", func() {
+			block, err := parseIncomingString("This is some basic text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is some basic text"),
+				),
+			)))
+		})
+
+		It("can parse text with escaped characters", func() {
+			block, err := parseIncomingString("This is some basic text with \\*escaped\\* characters")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is some basic text with *escaped* characters"),
+				),
+			)))
+		})
+
+		It("can parse text with newline", func() {
+			block, err := parseIncomingString("This is some basic text\nwith a newline")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is some basic text").WithSoftLineBreak(),
+					content.NewText("with a newline"),
+				),
+			)))
+		})
+
+		It("can parse text with hard newline", func() {
+			block, err := parseIncomingString("This is some basic text  \nwith a newline")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is some basic text").WithHardLineBreak(),
+					content.NewText("with a newline"),
+				),
+			)))
+		})
+
+		It("can parse heading", func() {
+			block, err := parseIncomingString("# Headline")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewHeading(1, content.NewText("Headline")),
+			)))
+		})
+
+		It("can parse heading level 2", func() {
+			block, err := parseIncomingString("## Headline")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewHeading(2, content.NewText("Headline")),
+			)))
+		})
+
+		It("can parse heading and text", func() {
+			block, err := parseIncomingString("# Headline\n\nThis is some basic text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewHeading(1, content.NewText("Headline")),
+				content.NewParagraph(
+					content.NewText("This is some basic text"),
+				),
+			)))
+		})
+
+		It("can parse heading and text with only single newline", func() {
+			block, err := parseIncomingString("# Headline\nThis is some basic text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewHeading(1, content.NewText("Headline")),
+				content.NewParagraph(
+					content.NewText("This is some basic text"),
+				).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+			)))
+		})
+
+		It("can parse soft line breaks", func() {
+			block, err := parseIncomingString("This is some basic text\nwith a soft line break")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is some basic text").WithSoftLineBreak(),
+					content.NewText("with a soft line break"),
+				),
+			)))
+		})
+	})
+
+	Describe("Inline formatting", func() {
+		It("can parse emphasis", func() {
+			block, err := parseIncomingString("This is *emphasized* text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewEmphasis(content.NewText("emphasized")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse strong", func() {
+			block, err := parseIncomingString("This is **strong** text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrong(content.NewText("strong")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse emphasis and strong", func() {
+			block, err := parseIncomingString("This is ***strong and emphasized*** text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewEmphasis(
+						content.NewStrong(
+							content.NewText("strong and emphasized"),
+						),
+					),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse strikethrough", func() {
+			block, err := parseIncomingString("This is ~~strikethrough~~ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrikethrough(content.NewText("strikethrough")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse strikethrough and strong", func() {
+			block, err := parseIncomingString("This is ~~**strikethrough and strong**~~ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrikethrough(
+						content.NewStrong(
+							content.NewText("strikethrough and strong"),
+						),
+					),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse strikethrough with ~ inline", func() {
+			block, err := parseIncomingString("This is ~~strike~through~~ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrikethrough(content.NewText("strike~through")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse strikethrough with ~~ inline", func() {
+			block, err := parseIncomingString("This is ~~strike~~through~~ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrikethrough(content.NewText("strike")),
+					content.NewText("through~~ text"),
+				),
+			)))
+		})
+
+		It("can parse strikethrough with escaped ~", func() {
+			block, err := parseIncomingString("This is ~~strike\\~~through~~ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewStrikethrough(content.NewText("strike~~through")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse highlight", func() {
+			block, err := parseIncomingString("This is ^^highlighted^^ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewHighlight(content.NewText("highlighted")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse highlight and strong", func() {
+			block, err := parseIncomingString("This is ^^**highlighted and strong**^^ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewHighlight(
+						content.NewStrong(
+							content.NewText("highlighted and strong"),
+						),
+					),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse highlight with ^ inline", func() {
+			block, err := parseIncomingString("This is ^^high^lighted^^ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewHighlight(content.NewText("high^lighted")),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("keeps a single ^ as text", func() {
+			block, err := parseIncomingString("This is 2^10 text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is 2^10 text"),
+				),
+			)))
+		})
+
+		It("keeps an unmatched ^^ as text", func() {
+			block, err := parseIncomingString("This is ^^ text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is ^^ text"),
+				),
+			)))
+		})
+
+		It("can parse code", func() {
+			block, err := parseIncomingString("This is `code` text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is "),
+					content.NewCodeSpan("code"),
+					content.NewText(" text"),
+				),
+			)))
+		})
+
+		It("can parse code with escaped characters", func() {
+			block, err := parseIncomingString("`code\\`")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewCodeSpan("code\\"),
+				),
+			)))
+		})
+
+		It("can parse code with double backticks", func() {
+			block, err := parseIncomingString("``code``")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewCodeSpan("code"),
+				),
+			)))
+		})
+
+		It("can parse code with double backticks and inline backtick", func() {
+			block, err := parseIncomingString("``co`de``")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewCodeSpan("co`de"),
+				),
+			)))
+		})
+
+		It("can parse code with triple backticks", func() {
+			block, err := parseIncomingString("```code```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewCodeSpan("code"),
+				),
+			)))
+		})
+	})
+
+	Describe("Links", func() {
+		It("can parse link", func() {
+			block, err := parseIncomingString("[This is a link](https://example.com)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("This is a link"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with escaped characters", func() {
+			block, err := parseIncomingString("[This is a link](https://example.com\\)\\*\\[\\])")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com)*[]",
+						content.NewText("This is a link"),
+					),
+				),
+			)))
+		})
+
+		It("can parse link with title", func() {
+			block, err := parseIncomingString("[This is a link](https://example.com 'Title')")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("This is a link"),
+					).WithTitle("Title"),
+				),
+			)))
+		})
+
+		It("can parse link with title and newlines", func() {
+			block, err := parseIncomingString("[This is a link](https://example.com 'Title\nwith newlines')")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("This is a link"),
+					).WithTitle("Title\nwith newlines"),
+				),
+			)))
+		})
+
+		It("can parse link with escaped title", func() {
+			block, err := parseIncomingString("[This is a link](https://example.com 'Title\\'s')")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink(
+						"https://example.com",
+						content.NewText("This is a link"),
+					).WithTitle("Title's"),
+				),
+			)))
+		})
+
+		It("can parse auto link", func() {
+			block, err := parseIncomingString("<https://example.com>")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewAutoLink("https://example.com"),
+				),
+			)))
+		})
+
+		It("can parse auto link without brackets", func() {
+			block, err := parseIncomingString("https://example.com")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewAutoLink("https://example.com"),
+				),
+			)))
+		})
+
+		It("link with only www prefix is not an auto link", func() {
+			block, err := parseIncomingString("www.example.com")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("www.example.com"),
+				),
+			)))
+		})
+
+		It("e-mails are not auto linked", func() {
+			block, err := parseIncomingString("test@example.com")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("test@example.com"),
+				),
+			)))
+		})
+
+		It("can parse simple tags", func() {
+			block, err := parseIncomingString("#tag followed by some text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewHashtag("tag"),
+					content.NewText(" followed by some text"),
+				),
+			)))
+		})
+
+		It("can parse tags with spaces", func() {
+			block, err := parseIncomingString("#[[tag with spaces]] and some other content")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewHashtag("tag with spaces"),
+					content.NewText(" and some other content"),
+				),
+			)))
+		})
+
+		It("can parse tag when end of line", func() {
+			block, err := parseIncomingString("#tag")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewHashtag("tag"),
+				),
+			)))
+		})
+
+		It("does not treat a hash followed by a space as a tag", func() {
+			block, err := parseIncomingString("issue # 5")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("issue # 5"),
+				),
+			)))
+		})
+
+		It("does not treat a hash at the end of a word as a tag", func() {
+			block, err := parseIncomingString("C# is fine")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("C# is fine"),
+				),
+			)))
+		})
+
+		It("does not end a tag inside a multi-byte character", func() {
+			// A non-breaking space ends the tag, but only as a whole character
+			// and not on the byte of it that looks like one.
+			block, err := parseIncomingString("#tag\u00a0name")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewHashtag("tag"),
+					content.NewText("\u00a0name"),
+				),
+			)))
+		})
+
+		It("will skip tag with spaces if end not found", func() {
+			block, err := parseIncomingString("#[[tag with spaces")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("#[[tag with spaces"),
+				),
+			)))
+		})
+
+		It("can parse wiki-style link", func() {
+			block, err := parseIncomingString("[[This is a link]] and this is some text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPageLink("This is a link"),
+					content.NewText(" and this is some text"),
+				),
+			)))
+		})
+
+		It("can parse wiki-style link with ] in it", func() {
+			block, err := parseIncomingString("[[This is ]a link]] and this is some text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPageLink("This is ]a link"),
+					content.NewText(" and this is some text"),
+				),
+			)))
+		})
+
+		It("can parse wiki-style link with escaped ]]", func() {
+			block, err := parseIncomingString("[[This is \\]]a link]] and this is some text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPageLink("This is ]]a link"),
+					content.NewText(" and this is some text"),
+				),
+			)))
+		})
+
+		It("can parse multiple wiki-style links", func() {
+			block, err := parseIncomingString("[[This is a link]] and [[this is another link]]")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPageLink("This is a link"),
+					content.NewText(" and "),
+					content.NewPageLink("this is another link"),
+				),
+			)))
+		})
+
+		It("can parse block reference", func() {
+			block, err := parseIncomingString("((0b48a6c6-93ca-4d35-b945-6c59007f7962))")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewBlockRef("0b48a6c6-93ca-4d35-b945-6c59007f7962"),
+				),
+			)))
+		})
+	})
+
+	Describe("Images", func() {
+		It("can parse image", func() {
+			block, err := parseIncomingString("![This is an image](https://example.com/image.png)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewImage(
+						"https://example.com/image.png",
+						content.NewText("This is an image"),
+					),
+				),
+			)))
+		})
+
+		It("can parse image with title", func() {
+			block, err := parseIncomingString("![This is an image](https://example.com/image.png 'Title')")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewImage(
+						"https://example.com/image.png",
+						content.NewText("This is an image"),
+					).WithTitle("Title"),
+				),
+			)))
+		})
+	})
+
+	Describe("Macros", func() {
+		It("can parse macro with only name", func() {
+			block, err := parseIncomingString("{{macro}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro"),
+				),
+			)))
+		})
+
+		It("macro with one non-quoted argument", func() {
+			block, err := parseIncomingString("{{macro arg}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg"),
+				),
+			)))
+		})
+
+		It("macro with one non-quoted argument and spaces", func() {
+			block, err := parseIncomingString("{{macro arg with spaces}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg with spaces"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and two arguments separated by comma", func() {
+			block, err := parseIncomingString("{{macro arg1,arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1", "arg2"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and two arguments separated by comma and space", func() {
+			block, err := parseIncomingString("{{macro arg1, arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1", "arg2"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and one quoted argument", func() {
+			block, err := parseIncomingString("{{macro \"arg1\", arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1", "arg2"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and quoted arguments", func() {
+			block, err := parseIncomingString("{{macro \"arg1\", \"arg2\"}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1", "arg2"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and one quoted argument containing a comma", func() {
+			block, err := parseIncomingString("{{macro \"arg1,\", arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1,", "arg2"),
+				),
+			)))
+		})
+
+		It("fails macro with name and one quoted argument wrongly separated", func() {
+			block, err := parseIncomingString("{{macro \"arg1,\" arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{{macro \"arg1,\" arg2}}"),
+				),
+			)))
+		})
+
+		It("fails macro with name and one argument followed by a trailing comma", func() {
+			block, err := parseIncomingString("{{macro arg1,}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{{macro arg1,}}"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and quoted argument with escape", func() {
+			block, err := parseIncomingString("{{macro \"arg1\\\"\"}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1\""),
+				),
+			)))
+		})
+
+		It("can parse macro with name and quote in the middle of argument", func() {
+			block, err := parseIncomingString("{{macro ar\"g1}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "ar\"g1"),
+				),
+			)))
+		})
+
+		It("can parse macro with name and quote in the middle of argument followed by another arg", func() {
+			block, err := parseIncomingString("{{macro ar\"g1, arg2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "ar\"g1", "arg2"),
+				),
+			)))
+		})
+
+		It("can parse macro with name containing dash", func() {
+			block, err := parseIncomingString("{{macro-name}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro-name"),
+				),
+			)))
+		})
+
+		It("can handle macro starting with three curly braces", func() {
+			block, err := parseIncomingString("{{{macro}}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro"),
+				),
+			)))
+		})
+
+		It("can handle macro starting with three curly braces with arguments", func() {
+			block, err := parseIncomingString("{{{macro arg1, arg2}}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro", "arg1", "arg2"),
+				),
+			)))
+		})
+
+		It("empty macro is parsed as text", func() {
+			block, err := parseIncomingString("{{}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{{}}"),
+				),
+			)))
+		})
+
+		It("macro that does not end is parsed as text", func() {
+			block, err := parseIncomingString("{{macro")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{{macro"),
+				),
+			)))
+		})
+
+		It("macro without closing curly brace is parsed as text", func() {
+			block, err := parseIncomingString("{{macro}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{{macro}"),
+				),
+			)))
+		})
+
+		It("macro with three curly braces missing the last closing brace is parsed from the second brace", func() {
+			// The third { is not part of a macro, so it is left as text and the
+			// rest parses as a regular two brace macro.
+			block, err := parseIncomingString("{{{macro}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("{"),
+					content.NewMacro("macro"),
+				),
+			)))
+		})
+
+		It("can handle multiple macros", func() {
+			block, err := parseIncomingString("{{macro1}} {{macro2}}")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewMacro("macro1"),
+					content.NewText(" "),
+					content.NewMacro("macro2"),
+				),
+			)))
+		})
+
+		Describe("Query", func() {
+			It("can parse query", func() {
+				block, err := parseIncomingString("{{query datalog query}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewQuery("datalog query"),
+					),
+				)))
+			})
+
+			It("query without a query string is parsed as macro", func() {
+				block, err := parseIncomingString("{{query}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewMacro("query"),
+					),
+				)))
+			})
+		})
+
+		Describe("Page embed", func() {
+			It("can parse page embed", func() {
+				block, err := parseIncomingString("{{embed [[page]]}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewPageEmbed("page"),
+					),
+				)))
+			})
+
+			It("embed without closing square bracket is parsed as macro", func() {
+				block, err := parseIncomingString("{{embed [[page]}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewMacro("embed", "[[page]"),
+					),
+				)))
+			})
+		})
+
+		Describe("Block embed", func() {
+			It("can parse block embed", func() {
+				block, err := parseIncomingString("{{embed ((block))}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewBlockEmbed("block"),
+					),
+				)))
+			})
+
+			It("embed without closing parenthesis is parsed as macro", func() {
+				block, err := parseIncomingString("{{embed ((block)}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewMacro("embed", "((block)"),
+					),
+				)))
+			})
+		})
+
+		Describe("Cloze", func() {
+			It("can parse cloze with only answer", func() {
+				block, err := parseIncomingString("{{cloze answer}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewCloze("answer"),
+					),
+				)))
+			})
+
+			It("can parse cloze with answer and cue", func() {
+				block, err := parseIncomingString("{{cloze answer \\ cue}}")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewClozeWithCue("answer", "cue"),
+					),
+				)))
+			})
+		})
+	})
+
+	Describe("Code blocks", func() {
+		It("can parse code block", func() {
+			block, err := parseIncomingString("```\nThis is a code block\n```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewCodeBlock("This is a code block\n"),
+			)))
+		})
+
+		It("can parse code block with newlines", func() {
+			block, err := parseIncomingString("```\nThis is\na code block\n```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewCodeBlock("This is\na code block\n"),
+			)))
+		})
+
+		It("can parse code block with blank lines", func() {
+			block, err := parseIncomingString("```\nThis is\n\na code block\n```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewCodeBlock("This is\n\na code block\n"),
+			)))
+		})
+
+		It("can parse code block with language", func() {
+			block, err := parseIncomingString("```go\nThis is a code block\n```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewCodeBlock("This is a code block\n").WithLanguage("go"),
+			)))
+		})
+
+		It("can parse indented code block", func() {
+			block, err := parseIncomingString("    This is an indented code block\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewCodeBlock("This is an indented code block\n"),
+			)))
+		})
+
+		It("can parse code block with blank lines in block", func() {
+			block, err := parseIncomingString("- ```\n  This is\n  \n  a code block\n  ```")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewCodeBlock("This is\n\na code block\n"),
+				),
+			)))
+		})
+	})
+
+	Describe("Blockquotes", func() {
+		It("can parse blockquote", func() {
+			block, err := parseIncomingString("> This is a blockquote\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewParagraph(
+						content.NewText("This is a blockquote"),
+					),
+				),
+			)))
+		})
+
+		It("can parse nested blockquote", func() {
+			block, err := parseIncomingString("> > This is a nested blockquote\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewBlockquote(
+						content.NewParagraph(
+							content.NewText("This is a nested blockquote"),
+						),
+					),
+				),
+			)))
+		})
+
+		It("can parse blockquote spanning multiple lines", func() {
+			block, err := parseIncomingString("> This is a blockquote\n> with multiple lines\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewParagraph(
+						content.NewText("This is a blockquote").WithSoftLineBreak(),
+						content.NewText("with multiple lines"),
+					),
+				),
+			)))
+		})
+
+		It("can parse blockquote spanning multiple lines without marker", func() {
+			block, err := parseIncomingString("> This is a blockquote\nwith multiple lines\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewParagraph(
+						content.NewText("This is a blockquote").WithSoftLineBreak(),
+						content.NewText("with multiple lines"),
+					),
+				),
+			)))
+		})
+
+		It("can parse blockquote with header", func() {
+			block, err := parseIncomingString("> # This is a header\n> And this is a paragraph\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewHeading(1,
+						content.NewText("This is a header"),
+					),
+					content.NewParagraph(
+						content.NewText("And this is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				),
+			)))
+		})
+
+		It("can parse blockquote followed by a paragraph", func() {
+			block, err := parseIncomingString("> This is a blockquote\n\nThis is a paragraph")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlockquote(
+					content.NewParagraph(
+						content.NewText("This is a blockquote"),
+					),
+				),
+				content.NewParagraph(
+					content.NewText("This is a paragraph"),
+				),
+			)))
+		})
+
+		It("can parse paragraph interrupted by blockquote", func() {
+			block, err := parseIncomingString("This is a paragraph\n> This is a blockquote")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is a paragraph"),
+				),
+				content.NewBlockquote(
+					content.NewParagraph(
+						content.NewText("This is a blockquote"),
+					),
+				).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+			)))
+		})
+	})
+
+	Describe("Lists", func() {
+		Describe("Unordered lists", func() {
+			Describe("With stars", func() {
+				It("can parse", func() {
+					block, err := parseIncomingString("* Item 1\n* Item 2\n")
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(block).To(tests.EqualNode(content.NewBlock(
+						content.NewList(
+							content.ListTypeUnordered,
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 1"),
+								),
+							),
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 2"),
+								),
+							),
+						),
+					)))
+				})
+
+				It("can parse with multiple lines", func() {
+					block, err := parseIncomingString("* Item 1\n  with multiple lines\n* Item 2\n")
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(block).To(tests.EqualNode(content.NewBlock(
+						content.NewList(
+							content.ListTypeUnordered,
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 1").WithSoftLineBreak(),
+									content.NewText("with multiple lines"),
+								),
+							),
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 2"),
+								),
+							),
+						),
+					)))
+				})
+
+				It("can parse with multiple paragraphs", func() {
+					block, err := parseIncomingString("* Item 1\n\n  with multiple paragraphs\n* Item 2\n")
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(block).To(tests.EqualNode(content.NewBlock(
+						content.NewList(
+							content.ListTypeUnordered,
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 1"),
+								),
+								content.NewParagraph(
+									content.NewText("with multiple paragraphs"),
+								),
+							),
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 2"),
+								),
+							),
+						),
+					)))
+				})
+			})
+
+			Describe("With pluses", func() {
+				It("can parse", func() {
+					block, err := parseIncomingString("+ Item 1\n+ Item 2\n")
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(block).To(tests.EqualNode(content.NewBlock(
+						content.NewListFromMarker('+',
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 1"),
+								),
+							),
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 2"),
+								),
+							),
+						),
+					)))
+				})
+			})
+
+			Describe("With stars and pluses", func() {
+				It("can parse", func() {
+					block, err := parseIncomingString("* Item 1\n+ Item 2\n")
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(block).To(tests.EqualNode(content.NewBlock(
+						content.NewListFromMarker('*',
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 1"),
+								),
+							),
+						),
+						content.NewListFromMarker('+',
+							content.NewListItem(
+								content.NewParagraph(
+									content.NewText("Item 2"),
+								),
+							),
+						).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					)))
+				})
+			})
+		})
+
+		Describe("Ordered lists", func() {
+			It("can parse", func() {
+				block, err := parseIncomingString("1. Item 1\n2. Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeOrdered,
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 1"),
+							),
+						),
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 2"),
+							),
+						),
+					),
+				)))
+			})
+
+			It("can parse with multiple lines", func() {
+				block, err := parseIncomingString("1. Item 1\n   with multiple lines\n2. Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeOrdered,
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 1").WithSoftLineBreak(),
+								content.NewText("with multiple lines"),
+							),
+						),
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 2"),
+							),
+						),
+					),
+				)))
+			})
+
+			It("can parse with multiple paragraphs", func() {
+				block, err := parseIncomingString("1. Item 1\n\n   with multiple paragraphs\n2. Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeOrdered,
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 1"),
+							),
+							content.NewParagraph(
+								content.NewText("with multiple paragraphs"),
+							),
+						),
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 2"),
+							),
+						),
+					),
+				)))
+			})
+		})
+
+		Describe("Nested lists", func() {
+			It("can parse star within plus", func() {
+				block, err := parseIncomingString("+ Item 1\n  * Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewListFromMarker('+',
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 1"),
+							),
+							content.NewListFromMarker('*',
+								content.NewListItem(
+									content.NewParagraph(
+										content.NewText("Item 2"),
+									),
+								),
+							).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+						),
+					),
+				)))
+			})
+
+			It("can parse star within plus without text", func() {
+				block, err := parseIncomingString("*\n\t* Item 1.1\n\t* Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeUnordered,
+						content.NewListItem(
+							content.NewList(
+								content.ListTypeUnordered,
+								content.NewListItem(
+									content.NewParagraph(
+										content.NewText("Item 1.1"),
+									),
+								),
+								content.NewListItem(
+									content.NewParagraph(
+										content.NewText("Item 2"),
+									),
+								),
+							),
+						),
+					),
+				)))
+			})
+
+			It("can parse star within plus without text", func() {
+				block, err := parseIncomingString("*\n    * Item 1.1\n    * Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeUnordered,
+						content.NewListItem(
+							content.NewList(
+								content.ListTypeUnordered,
+								content.NewListItem(
+									content.NewParagraph(
+										content.NewText("Item 1.1"),
+									),
+								),
+								content.NewListItem(
+									content.NewParagraph(
+										content.NewText("Item 2"),
+									),
+								),
+							),
+						),
+					),
+				)))
+			})
+		})
+	})
+
+	Describe("Footnotes", func() {
+		It("can parse a footnote reference", func() {
+			block, err := parseIncomingString("Text with a footnote[^1] in it")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Text with a footnote"),
+					content.NewFootnoteRef("1"),
+					content.NewText(" in it"),
+				),
+			)))
+		})
+
+		It("can parse a footnote reference with a named label", func() {
+			block, err := parseIncomingString("Text[^note]")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Text"),
+					content.NewFootnoteRef("note"),
+				),
+			)))
+		})
+
+		It("can parse a footnote definition", func() {
+			block, err := parseIncomingString("[^1]: The footnote")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewFootnoteDefinition("1",
+					content.NewText("The footnote"),
+				),
+			)))
+		})
+
+		It("can parse a footnote definition with formatting", func() {
+			block, err := parseIncomingString("[^1]: The **footnote** with [[Page]]")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewFootnoteDefinition("1",
+					content.NewText("The "),
+					content.NewStrong(content.NewText("footnote")),
+					content.NewText(" with "),
+					content.NewPageLink("Page"),
+				),
+			)))
+		})
+
+		It("keeps a definition where it was written", func() {
+			block, err := parseIncomingString("Text[^1]\n\n[^1]: The footnote\n\nMore text")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Text"),
+					content.NewFootnoteRef("1"),
+				),
+				content.NewFootnoteDefinition("1",
+					content.NewText("The footnote"),
+				),
+				content.NewParagraph(
+					content.NewText("More text"),
+				),
+			)))
+		})
+
+		It("can parse a footnote in a sub block", func() {
+			block, err := parseIncomingString("- Text[^1]\n  [^1]: The footnote")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Text"),
+						content.NewFootnoteRef("1"),
+					),
+					content.NewFootnoteDefinition("1",
+						content.NewText("The footnote"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				),
+			)))
+		})
+
+		It("keeps a link with a caret as a link", func() {
+			block, err := parseIncomingString("[^1](https://example.com)")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewLink("https://example.com",
+						content.NewText("^1"),
+					),
+				),
+			)))
+		})
+
+		It("keeps brackets with a space in them as text", func() {
+			block, err := parseIncomingString("Text [^not a label] more")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Text [^not a label] more"),
+				),
+			)))
+		})
+	})
+
+	Describe("Math", func() {
+		It("can parse inline math", func() {
+			block, err := parseIncomingString("The formula $E = mc^2$ is famous")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("The formula "),
+					content.NewMath("E = mc^2"),
+					content.NewText(" is famous"),
+				),
+			)))
+		})
+
+		It("can parse displayed math within a line", func() {
+			block, err := parseIncomingString("The formula $$E = mc^2$$ is famous")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("The formula "),
+					content.NewDisplayedMath("E = mc^2"),
+					content.NewText(" is famous"),
+				),
+			)))
+		})
+
+		It("can parse a math block", func() {
+			block, err := parseIncomingString("$$\nE = mc^2\n$$")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewMathBlock("E = mc^2\n"),
+			)))
+		})
+
+		It("can parse a math block with several lines", func() {
+			block, err := parseIncomingString("$$\na = b\nc = d\n$$")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewMathBlock("a = b\nc = d\n"),
+			)))
+		})
+
+		It("can parse a math block in a sub block", func() {
+			block, err := parseIncomingString("- Formula\n  $$\n  E = mc^2\n  $$")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Formula"),
+					),
+					content.NewMathBlock("E = mc^2\n").
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				),
+			)))
+		})
+
+		It("keeps amounts in a sentence as text", func() {
+			block, err := parseIncomingString("It costs $5 and $10")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("It costs $5 and $10"),
+				),
+			)))
+		})
+
+		It("keeps a dollar sign followed by a space as text", func() {
+			block, err := parseIncomingString("Costs $ 5 or $ 10")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Costs $ 5 or $ 10"),
+				),
+			)))
+		})
+
+		It("does not carry a formula past the line it starts on", func() {
+			block, err := parseIncomingString("Costs $5\nand $10 more")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Costs $5").WithSoftLineBreak(),
+					content.NewText("and $10 more"),
+				),
+			)))
+		})
+
+		It("keeps an escaped dollar sign as text", func() {
+			block, err := parseIncomingString("Not math: \\$x\\$")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Not math: $x$"),
+				),
+			)))
+		})
+	})
+
+	Describe("Tables", func() {
+		It("can parse a table with a header and a row", func() {
+			block, err := parseIncomingString("| Name | Value |\n| --- | --- |\n| a | 1 |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("Name")),
+						content.NewTableCell(content.NewText("Value")),
+					),
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("a")),
+						content.NewTableCell(content.NewText("1")),
+					),
+				).WithAlignments(content.TableAlignmentNone, content.TableAlignmentNone),
+			)))
+		})
+
+		It("can parse a table with only a header", func() {
+			block, err := parseIncomingString("| Name |\n| --- |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("Name")),
+					),
+				).WithAlignments(content.TableAlignmentNone),
+			)))
+		})
+
+		It("can parse the alignment of the columns", func() {
+			block, err := parseIncomingString("| a | b | c | d |\n| :-- | --: | :-: | --- |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("a")),
+						content.NewTableCell(content.NewText("b")),
+						content.NewTableCell(content.NewText("c")),
+						content.NewTableCell(content.NewText("d")),
+					),
+				).WithAlignments(
+					content.TableAlignmentLeft,
+					content.TableAlignmentRight,
+					content.TableAlignmentCenter,
+					content.TableAlignmentNone,
+				),
+			)))
+		})
+
+		It("can parse formatting in a cell", func() {
+			block, err := parseIncomingString("| Name |\n| --- |\n| **a** and [[Page]] |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("Name")),
+					),
+					content.NewTableRow(
+						content.NewTableCell(
+							content.NewStrong(content.NewText("a")),
+							content.NewText(" and "),
+							content.NewPageLink("Page"),
+						),
+					),
+				).WithAlignments(content.TableAlignmentNone),
+			)))
+		})
+
+		It("can parse an escaped pipe in a cell", func() {
+			block, err := parseIncomingString("| Name |\n| --- |\n| a \\| b |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("Name")),
+					),
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("a | b")),
+					),
+				).WithAlignments(content.TableAlignmentNone),
+			)))
+		})
+
+		It("can parse a table after a paragraph", func() {
+			block, err := parseIncomingString("Text\n\n| Name |\n| --- |")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Text"),
+				),
+				content.NewTable(
+					content.NewTableRow(
+						content.NewTableCell(content.NewText("Name")),
+					),
+				).WithAlignments(content.TableAlignmentNone),
+			)))
+		})
+
+		It("keeps a lone dash as an empty block instead of a table", func() {
+			block, err := parseIncomingString("Test\n-\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Test"),
+				),
+				content.NewBlock(),
+			)))
+		})
+	})
+
+	Describe("Thematic breaks", func() {
+		It("can parse", func() {
+			block, err := parseIncomingString("Foo\n\n---\n\nBar\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Foo"),
+				),
+				content.NewThematicBreak(),
+				content.NewParagraph(
+					content.NewText("Bar"),
+				),
+			)))
+		})
+	})
+
+	Describe("Raw HTML", func() {
+		It("can parse inline", func() {
+			block, err := parseIncomingString("This is a <b>bold</b> word.")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is a "),
+					content.NewRawHTML("<b>"),
+					content.NewText("bold"),
+					content.NewRawHTML("</b>"),
+					content.NewText(" word."),
+				),
+			)))
+		})
+
+		It("can parse block", func() {
+			block, err := parseIncomingString("<p>This is a paragraph.</p>")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewRawHTMLBlock("<p>This is a paragraph.</p>"),
+			)))
+		})
+	})
+
+	Describe("Blocks", func() {
+		It("can parse sub-blocks", func() {
+			block, err := parseIncomingString("- Item 1\n- Item 2\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 1"),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 2"),
+					),
+				),
+			)))
+		})
+
+		It("can parse block with content and sub-blocks", func() {
+			block, err := parseIncomingString("This is a paragraph\n\n- Item 1\n- Item 2\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("This is a paragraph"),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 1"),
+					).WithPreviousLineType(content.PreviousLineTypeBlank),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 2"),
+					),
+				),
+			)))
+		})
+
+		It("can parse sub-blocks with sub-blocks", func() {
+			block, err := parseIncomingString("- Item 1\n  - Item 1.1\n  - Item 1.2\n- Item 2\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 1"),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 1.1"),
+						),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 1.2"),
+						),
+					),
+				),
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 2"),
+					),
+				),
+			)))
+		})
+
+		It("can parse empty sub-block", func() {
+			block, err := parseIncomingString("- Item 1\n-\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Item 1"),
+					),
+				),
+				content.NewBlock(),
+			)))
+		})
+
+		It("can parse empty sub-block with content in main block", func() {
+			block, err := parseIncomingString("Test\n-\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Test"),
+				),
+				content.NewBlock(),
+			)))
+		})
+
+		It("can parse empty sub-block with content in main block", func() {
+			block, err := parseIncomingString("Test  \n-\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewText("Test"),
+				),
+				content.NewBlock(),
+			)))
+		})
+
+		It("non-breaking dash does not start block", func() {
+			block, err := parseIncomingString("[[Test]]-\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewParagraph(
+					content.NewPageLink("Test"),
+					content.NewText("-"),
+				),
+			)))
+		})
+
+		Describe("Malformed blocks", func() {
+			It("trailing content is added to last block", func() {
+				block, err := parseIncomingString("This is a paragraph\n\n- Item 1\n- Item 2\n\nThis is a trailing paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 1"),
+						).WithPreviousLineType(content.PreviousLineTypeBlank),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 2"),
+						),
+						content.NewParagraph(
+							content.NewText("This is a trailing paragraph"),
+						),
+					),
+				)))
+			})
+		})
+
+		Describe("Properties", func() {
+			It("can parse single properties", func() {
+				block, err := parseIncomingString("key:: value")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					),
+				)))
+			})
+
+			It("can parse property with a value of several words", func() {
+				block, err := parseIncomingString("key:: a longer value")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("a longer value")),
+					),
+				)))
+			})
+
+			It("can parse property with a value of several words followed by a paragraph", func() {
+				block, err := parseIncomingString("key:: a longer value\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("a longer value")),
+					),
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse multiple properties", func() {
+				block, err := parseIncomingString("key1:: value1\nkey2:: value2")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+						content.NewProperty("key2", content.NewText("value2")),
+					),
+				)))
+			})
+
+			It("can parse property at the top of paragraph", func() {
+				block, err := parseIncomingString("key:: value\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					),
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse multiple properties at the top of paragraph", func() {
+				block, err := parseIncomingString("key1:: value1\nkey2:: value2\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+						content.NewProperty("key2", content.NewText("value2")),
+					),
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property at the bottom of paragraph", func() {
+				block, err := parseIncomingString("This is a paragraph\nkey:: value\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					),
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse multiple properties at the bottom of paragraph", func() {
+				block, err := parseIncomingString("This is a paragraph\nkey1:: value1\nkey2:: value2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					),
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+						content.NewProperty("key2", content.NewText("value2")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property in the middle of paragraph", func() {
+				block, err := parseIncomingString("Line 1\nkey:: value\nLine 2")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Line 1"),
+					),
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewParagraph(
+						content.NewText("Line 2"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse multiple properties at the middle of paragraph", func() {
+				block, err := parseIncomingString("Line 1\nkey1:: value1\nkey2:: value2\nLine 2")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Line 1"),
+					),
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+						content.NewProperty("key2", content.NewText("value2")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewParagraph(
+						content.NewText("Line 2"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property in top and end of paragraph", func() {
+				block, err := parseIncomingString("key1:: value1\nLine 1\nkey2:: value2")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+					),
+					content.NewParagraph(
+						content.NewText("Line 1"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewProperties(
+						content.NewProperty("key2", content.NewText("value2")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse multiple properties in top and end of paragraph", func() {
+				block, err := parseIncomingString("key1:: value1\nkey2:: value2\nLine 1\nkey3:: value3\nkey4:: value4")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+						content.NewProperty("key2", content.NewText("value2")),
+					),
+					content.NewParagraph(
+						content.NewText("Line 1"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewProperties(
+						content.NewProperty("key3", content.NewText("value3")),
+						content.NewProperty("key4", content.NewText("value4")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property in top, middle and end of paragraph", func() {
+				block, err := parseIncomingString("key1:: value1\nLine 1\nkey2:: value2\nLine 2\nkey3:: value3")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key1", content.NewText("value1")),
+					),
+					content.NewParagraph(
+						content.NewText("Line 1"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewProperties(
+						content.NewProperty("key2", content.NewText("value2")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewParagraph(
+						content.NewText("Line 2"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewProperties(
+						content.NewProperty("key3", content.NewText("value3")),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property after paragraph", func() {
+				block, err := parseIncomingString("This is a paragraph\n\nkey:: value\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					),
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					).WithPreviousLineType(content.PreviousLineTypeBlank),
+				)))
+			})
+
+			It("will not parse property name no space after :: as property", func() {
+				block, err := parseIncomingString("key::value\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("key::value").WithSoftLineBreak(),
+						content.NewText("This is a paragraph"),
+					),
+				)))
+			})
+
+			It("can parse property with non text nodes", func() {
+				block, err := parseIncomingString("key:: [[link]]\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewPageLink("link")),
+					),
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property with mixed nodes", func() {
+				block, err := parseIncomingString("key:: [[link]] and #tag\nThis is a paragraph\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty(
+							"key",
+							content.NewPageLink("link"),
+							content.NewText(" and "),
+							content.NewHashtag("tag"),
+						),
+					),
+					content.NewParagraph(
+						content.NewText("This is a paragraph"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse property before blocks", func() {
+				block, err := parseIncomingString("key:: value\n- Item 1\n- Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 1"),
+						),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 2"),
+						),
+					),
+				)))
+			})
+
+			It("can parse property before unordered star list", func() {
+				block, err := parseIncomingString("key:: value\n* Item 1\n* Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					),
+					content.NewList(
+						content.ListTypeUnordered,
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 1"),
+							),
+						),
+						content.NewListItem(
+							content.NewParagraph(
+								content.NewText("Item 2"),
+							),
+						),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("keeps the value of a property that is not a list", func() {
+				block, err := parseIncomingString("key:: First, Second Name")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("First, Second Name")),
+					),
+				)))
+			})
+
+			It("reads the values of a built-in list property as page references", func() {
+				block, err := parseIncomingString("alias:: First, Second Name")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty(
+							"alias",
+							content.NewPageRefText("First"),
+							content.NewText(", "),
+							content.NewPageRefText("Second Name"),
+						),
+					),
+				)))
+			})
+
+			It("reads the single value of a list property as a page reference", func() {
+				block, err := parseIncomingString("tags:: Example")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("tags", content.NewPageRefText("Example")),
+					),
+				)))
+			})
+
+			It("reads the values of a list property split by a full width comma", func() {
+				block, err := parseIncomingString("tags:: First，Second")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty(
+							"tags",
+							content.NewPageRefText("First"),
+							content.NewText("，"),
+							content.NewPageRefText("Second"),
+						),
+					),
+				)))
+			})
+
+			It("mixes page links and text in the values of a list property", func() {
+				block, err := parseIncomingString("tags:: [[First]], Second, #Third")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty(
+							"tags",
+							content.NewPageLink("First"),
+							content.NewText(", "),
+							content.NewPageRefText("Second"),
+							content.NewText(", "),
+							content.NewHashtag("Third"),
+						),
+					),
+				)))
+			})
+
+			It("keeps a list property that has no values as it was written", func() {
+				block, err := parseIncomingString("tags:: ,")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("tags", content.NewText(",")),
+					),
+				)))
+			})
+
+			It("reads the values of a configured list property as page references", func() {
+				block, err := parseIncomingString(
+					"key:: First, Second Name",
+					markdown.WithPropertiesSeparatedByCommas("key"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty(
+							"key",
+							content.NewPageRefText("First"),
+							content.NewText(", "),
+							content.NewPageRefText("Second Name"),
+						),
+					),
+				)))
+			})
+
+			It("matches the name of a list property without regard to case", func() {
+				block, err := parseIncomingString(
+					"Key:: First",
+					markdown.WithPropertiesSeparatedByCommas("KEY"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("Key", content.NewPageRefText("First")),
+					),
+				)))
+			})
+
+			It("marks a property whose references are ignored", func() {
+				block, err := parseIncomingString(
+					"author:: Someone",
+					markdown.WithIgnoredPageReferences("author"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("author", content.NewText("Someone")).
+							WithPageRefsIgnored(true),
+					),
+				)))
+			})
+
+			It("keeps the page links of a property whose references are ignored", func() {
+				block, err := parseIncomingString(
+					"author:: [[Someone]]",
+					markdown.WithIgnoredPageReferences("author"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("author", content.NewPageLink("Someone")).
+							WithPageRefsIgnored(true),
+					),
+				)))
+			})
+
+			It("does not split a list property whose references are ignored", func() {
+				block, err := parseIncomingString(
+					"tags:: First, Second",
+					markdown.WithIgnoredPageReferences("tags"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewProperties(
+						content.NewProperty("tags", content.NewText("First, Second")).
+							WithPageRefsIgnored(true),
+					),
+				)))
+			})
+
+			It("can parse property in block", func() {
+				block, err := parseIncomingString("- key:: value\nItem 1\n- Item 2\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewBlock(
+						content.NewProperties(
+							content.NewProperty("key", content.NewText("value")),
+						),
+						content.NewParagraph(
+							content.NewText("Item 1"),
+						).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					),
+					content.NewBlock(
+						content.NewParagraph(
+							content.NewText("Item 2"),
+						),
+					),
+				)))
+			})
+		})
+	})
+
+	Describe("Advanced commands", func() {
+		It("can parse", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\nraw text\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "raw text\n"),
+			)))
+		})
+
+		It("can parse and keep indentation", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\n  raw text\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "  raw text\n"),
+			)))
+		})
+
+		It("can parse multiple lines", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\nraw text\nmore raw text\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "raw text\nmore raw text\n"),
+			)))
+		})
+
+		It("can parse multiple lines and keep indentation", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\n  raw text\n  more raw text\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "  raw text\n  more raw text\n"),
+			)))
+		})
+
+		It("can parse multiple lines and keep indentation with empty lines", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\n  raw text\n\n  more raw text\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "  raw text\n\n  more raw text\n"),
+			)))
+		})
+
+		It("can parse multiple lines and keep indentation with empty lines at the end", func() {
+			block, err := parseIncomingString("#+BEGIN_ABCDEF\n  raw text\n  more raw text\n\n#+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewAdvancedCommand("ABCDEF", "  raw text\n  more raw text\n\n"),
+			)))
+		})
+
+		It("keeps indentation when parsed in a list", func() {
+			block, err := parseIncomingString("* Item\n  #+BEGIN_ABCDEF\n  raw text\n    raw text\n  #+END_ABCDEF\n")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewList(
+					content.ListTypeUnordered,
+					content.NewListItem(
+						content.NewParagraph(
+							content.NewText("Item"),
+						),
+						content.NewAdvancedCommand("ABCDEF", "raw text\n  raw text\n"),
+					),
+				),
+			)))
+		})
+
+		It("trailing items in list parsed correctly", func() {
+			block, err := parseIncomingString("* Item\n  #+BEGIN_ABCDEF\n  raw text\n    raw text\n  #+END_ABCDEF\n* Item2")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(block).To(tests.EqualNode(content.NewBlock(
+				content.NewList(
+					content.ListTypeUnordered,
+					content.NewListItem(
+						content.NewParagraph(
+							content.NewText("Item"),
+						),
+						content.NewAdvancedCommand("ABCDEF", "raw text\n  raw text\n"),
+					),
+					content.NewListItem(
+						content.NewParagraph(
+							content.NewText("Item2"),
+						),
+					),
+				),
+			)))
+		})
+
+		Describe("Query", func() {
+			It("can parse", func() {
+				block, err := parseIncomingString("#+BEGIN_QUERY\nraw text\n#+END_QUERY\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewQueryCommand("raw text\n"),
+				)))
+			})
+
+			It("can parse and keep indentation", func() {
+				block, err := parseIncomingString("#+BEGIN_QUERY\n  raw text\n#+END_QUERY\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewQueryCommand("  raw text\n"),
+				)))
+			})
+
+			It("can parse multiple lines", func() {
+				block, err := parseIncomingString("#+BEGIN_QUERY\nraw text\nraw text\n#+END_QUERY\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewQueryCommand("raw text\nraw text\n"),
+				)))
+			})
+
+			It("can parse multiple lines with indentation", func() {
+				block, err := parseIncomingString("#+BEGIN_QUERY\nraw text\n  raw text\n#+END_QUERY\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewQueryCommand("raw text\n  raw text\n"),
+				)))
+			})
+
+			It("keeps indentation when parsed in a list", func() {
+				block, err := parseIncomingString("* #+BEGIN_QUERY\n  raw text\n    raw text\n  #+END_QUERY\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewList(
+						content.ListTypeUnordered,
+						content.NewListItem(
+							content.NewQueryCommand("raw text\n  raw text\n"),
+						),
+					),
+				)))
+			})
+		})
+
+		Describe("Quote", func() {
+			It("can parse", func() {
+				block, err := parseIncomingString("#+BEGIN_QUOTE\nraw text\n#+END_QUOTE\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewAdvancedCommand("QUOTE", "raw text\n"),
+				)))
+			})
+
+			It("can parse multiple lines", func() {
+				block, err := parseIncomingString("#+BEGIN_QUOTE\nraw text\nraw text\n#+END_QUOTE\n")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewAdvancedCommand("QUOTE", "raw text\nraw text\n"),
+				)))
+			})
+		})
+	})
+
+	Describe("Tasks", func() {
+		Describe("Markers", func() {
+			It("can parse TODO", func() {
+				block, err := parseIncomingString("TODO Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse TODO with prefixed spaces", func() {
+				block, err := parseIncomingString("   TODO Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("skips TODO without space after", func() {
+				block, err := parseIncomingString("TODOTask")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("TODOTask"),
+					),
+				)))
+			})
+
+			It("skips TODO that is not first in paragraph", func() {
+				block, err := parseIncomingString("This is a TODO")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("This is a TODO"),
+					),
+				)))
+			})
+
+			It("skips TODO in second paragraph", func() {
+				block, err := parseIncomingString("Paragraph 1\n\nTODO Paragraph 2")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Paragraph 1"),
+					),
+					content.NewParagraph(
+						content.NewText("TODO Paragraph 2"),
+					),
+				)))
+			})
+
+			It("can parse DONE", func() {
+				block, err := parseIncomingString("DONE Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusDone),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse DOING", func() {
+				block, err := parseIncomingString("DOING Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusDoing),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse LATER", func() {
+				block, err := parseIncomingString("LATER Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusLater),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse NOW", func() {
+				block, err := parseIncomingString("NOW Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusNow),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse CANCELLED", func() {
+				block, err := parseIncomingString("CANCELLED Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusCancelled),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse CANCELED", func() {
+				block, err := parseIncomingString("CANCELED Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusCanceled),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse IN-PROGRESS", func() {
+				block, err := parseIncomingString("IN-PROGRESS Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusInProgress),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse WAIT", func() {
+				block, err := parseIncomingString("WAIT Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusWait),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse WAITING", func() {
+				block, err := parseIncomingString("WAITING Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusWaiting),
+						content.NewText("Task"),
+					),
+				)))
+			})
+		})
+
+		Describe("Priorities", func() {
+			It("can parse a priority after a marker", func() {
+				block, err := parseIncomingString("TODO [#A] Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewTaskPriority(content.PriorityA),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse a priority without a marker", func() {
+				block, err := parseIncomingString("[#B] Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskPriority(content.PriorityB),
+						content.NewText("Task"),
+					),
+				)))
+			})
+
+			It("can parse a priority without any content after it", func() {
+				block, err := parseIncomingString("TODO [#C]")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewTaskPriority(content.PriorityC),
+					),
+				)))
+			})
+
+			It("keeps a priority that is not at the start as text", func() {
+				block, err := parseIncomingString("Task [#A] more")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Task [#A] more"),
+					),
+				)))
+			})
+
+			It("keeps an unknown priority as text", func() {
+				block, err := parseIncomingString("TODO [#D] Task")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("[#D] Task"),
+					),
+				)))
+			})
+
+			It("keeps a tag in brackets as a tag", func() {
+				block, err := parseIncomingString("Task [#[[a tag]]] more")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("Task ["),
+						content.NewHashtag("a tag"),
+						content.NewText("] more"),
+					),
+				)))
+			})
+		})
+
+		Describe("Scheduled and deadline", func() {
+			It("can parse SCHEDULED", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-01-15 Mon>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduled(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse DEADLINE", func() {
+				block, err := parseIncomingString("TODO Task\nDEADLINE: <2024-01-15 Mon>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewDeadline(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse a date with a time of day", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-01-15 Mon 09:30>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduledWithTime(time.Date(2024, time.January, 15, 9, 30, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse a date with a repeater", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-01-15 Mon .+3d>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduled(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)).
+						WithRepeater(content.NewRepeater(content.RepeaterTypeRestart, 3, content.RepeaterUnitDay)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse a date with a time of day and a repeater", func() {
+				block, err := parseIncomingString("TODO Task\nDEADLINE: <2024-01-15 Mon 09:30 ++1w>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewDeadlineWithTime(time.Date(2024, time.January, 15, 9, 30, 0, 0, time.Local)).
+						WithRepeater(content.NewRepeater(content.RepeaterTypeCatchUp, 1, content.RepeaterUnitWeek)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("can parse both a scheduled date and a deadline", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-01-15 Mon>\nDEADLINE: <2024-01-20 Sat>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduled(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+					content.NewDeadline(time.Date(2024, time.January, 20, 0, 0, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)))
+			})
+
+			It("keeps a blank line before the date", func() {
+				block, err := parseIncomingString("TODO Task\n\nSCHEDULED: <2024-01-15 Mon>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduled(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)).
+						WithPreviousLineType(content.PreviousLineTypeBlank),
+				)))
+			})
+
+			It("keeps a date with an unsupported time range as text", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-01-15 Mon 10:00-11:00>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task").WithSoftLineBreak(),
+						content.NewText("SCHEDULED: <2024-01-15 Mon 10:00-11:00>"),
+					),
+				)))
+			})
+
+			It("keeps a date that does not exist as text", func() {
+				block, err := parseIncomingString("TODO Task\nSCHEDULED: <2024-02-31 Sat>")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task").WithSoftLineBreak(),
+						content.NewText("SCHEDULED: <2024-02-31 Sat>"),
+					),
+				)))
+			})
+
+			It("keeps text that only looks like a date as text", func() {
+				block, err := parseIncomingString("SCHEDULED: tomorrow")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(content.NewBlock(
+					content.NewParagraph(
+						content.NewText("SCHEDULED: tomorrow"),
+					),
+				)))
+			})
+		})
+
+		Describe("Logbooks", func() {
+			logbookBlock := func(entries ...content.LogbookEntry) *content.Block {
+				return content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewLogbook(entries...).
+						WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				)
+			}
+
+			It("Can parse LOGBOOK", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]--[2023-06-26 Mon 17:25:56] =>  00:00:00\nCLOCK: [2023-06-26 Mon 17:25:57]--[2023-06-26 Mon 17:25:58] =>  00:00:01\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 57, 0, time.Local),
+						time.Date(2023, time.June, 26, 17, 25, 58, 0, time.Local),
+					),
+				)))
+			})
+
+			It("can parse a clock that is still running", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+						time.Time{},
+					),
+				)))
+			})
+
+			It("can parse a state change", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\n* State \"DONE\" from \"TODO\" [2023-06-26 Mon 17:25:56]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryStateChange(
+						content.TaskStatusTodo,
+						content.TaskStatusDone,
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+				)))
+			})
+
+			It("can parse a state change without a previous status", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\n* State \"DONE\" [2023-06-26 Mon 17:25:56]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryStateChange(
+						content.TaskStatusNone,
+						content.TaskStatusDone,
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+				)))
+			})
+
+			It("keeps an entry it does not understand as a raw entry", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nsomething else\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryRaw("something else"),
+				)))
+			})
+
+			It("can parse a clock written without seconds", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:02\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+						time.Date(2023, time.June, 26, 17, 27, 0, 0, time.Local),
+					),
+				)))
+			})
+
+			It("can parse a running clock written without seconds", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+						time.Time{},
+					),
+				)))
+			})
+
+			It("can parse a state change written without seconds", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\n* State \"DONE\" from \"TODO\" [2023-06-26 Mon 17:25]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryStateChange(
+						content.TaskStatusTodo,
+						content.TaskStatusDone,
+						time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+					),
+				)))
+			})
+
+			It("keeps a clock that ends before it starts as a raw entry", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:58]--[2023-06-26 Mon 17:25:56] =>  00:00:02\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryRaw("CLOCK: [2023-06-26 Mon 17:25:58]--[2023-06-26 Mon 17:25:56] =>  00:00:02"),
+				)))
+			})
+
+			It("keeps a state change with an unknown status as a raw entry", func() {
+				block, err := parseIncomingString("TODO Task\n:LOGBOOK:\n* State \"SOMEDAY\" from \"TODO\" [2023-06-26 Mon 17:25:56]\n:END:")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(block).To(tests.EqualNode(logbookBlock(
+					content.NewLogbookEntryRaw("* State \"SOMEDAY\" from \"TODO\" [2023-06-26 Mon 17:25:56]"),
+				)))
+			})
+		})
+	})
+})
+
+func parseIncomingString(src string, opts ...markdown.ParseOption) (*content.Block, error) {
+	defaults := []markdown.ParseOption{markdown.WithTypedLogbooks(), markdown.WithStrictPriorities(), markdown.WithBuiltInPropertyLists()}
+	return markdown.ParseString(src, append(defaults, opts...)...)
+}

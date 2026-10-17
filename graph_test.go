@@ -7,6 +7,7 @@ import (
 	"time"
 
 	logseq "github.com/andreoliwa/logseq-go"
+	"github.com/andreoliwa/logseq-go/content"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -459,5 +460,29 @@ var _ = Describe("Graph", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(results.Size()).To(Equal(0))
 		})
+	})
+})
+
+var _ = Describe("Legacy page contracts", func() {
+	It("keeps the pre-block out of the existing Blocks API", func() {
+		dir := setupGraph()
+		Expect(os.WriteFile(filepath.Join(dir, "pages", "legacy.md"), []byte("alias:: Other\n- Task\n"), 0644)).To(Succeed())
+		graph, err := logseq.Open(context.Background(), dir)
+		Expect(err).NotTo(HaveOccurred())
+		defer graph.Close()
+		page, err := graph.OpenPage("legacy")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(page.Blocks()).To(HaveLen(1))
+		Expect(page.Blocks()[0].IsPreBlock()).To(BeFalse())
+	})
+	It("creates first-block properties through the existing Properties API", func() {
+		graph, err := logseq.Open(context.Background(), setupGraph())
+		Expect(err).NotTo(HaveOccurred())
+		defer graph.Close()
+		page, err := graph.OpenPage("legacy")
+		Expect(err).NotTo(HaveOccurred())
+		page.Properties().Set("key", content.NewText("value"))
+		Expect(page.Blocks()).To(HaveLen(1))
+		Expect(page.Blocks()[0].IsPreBlock()).To(BeFalse())
 	})
 })

@@ -22,9 +22,17 @@ when pages are modified. Please open issues if you find any bugs.
 ## Features
 
 - Read and write journals and pages
+- Rename and delete pages, with references to a renamed page updated across the
+  graph
+- Search, linked references and lookup of blocks by their id
+- Aliases and namespaces, such as `Parent/Child`
 - Rich content model
   - Blocks
   - Formatting via headings, paragraphs, lists, code blocks, etc.
+  - Highlights via `^^Example^^`
+  - Tables in the GitHub Flavored Markdown syntax
+  - LaTeX via `$formula$` and math blocks
+  - Footnotes via `[^1]` and `[^1]: The footnote`
   - Page links via `[[Example]]`
   - Tags via `#Example` and `#[[Example with space]]`
   - Macros via `{{macro param1 param2}}`
@@ -49,6 +57,47 @@ for _, block := range page.Blocks() {
 }
 ```
 
+In a graph with indexing enabled, opening a page by one of the aliases in its
+`alias::` property opens the page the alias belongs to, instead of creating a
+second page for the same content.
+
+The properties that hold a list of pages, such as `alias::` and `tags::`, have
+their values read as references to those pages, so `tags:: Book, Reading`
+points at two pages without either being written as a link. The graph decides
+which other properties are read that way via `:property/separated-by-commas`,
+and which properties never point at a page via
+`:ignored-page-references-keywords`.
+
+The blocks that reference a page, what Logseq shows as its linked references,
+are available from the page itself:
+
+```go
+references, err := page.LinkedReferences(ctx)
+
+for _, reference := range references.Results() {
+  block, referencingPage, err := reference.Open()
+  // ...
+}
+```
+
+Pages with a `/` in their title are part of a namespace, and the pages in a
+namespace can be found from the page it belongs to:
+
+```go
+page, err := graph.OpenPage("Parent/Child")
+
+page.Namespace() // Parent
+
+children, err := page.NamespaceChildren(ctx)
+```
+
+Blocks that have an id, which is what block references such as `((id))` point
+at, can be opened directly in a graph that has indexing enabled:
+
+```go
+block, page, err := graph.OpenBlock(ctx, "65a1b2c3-d4e5-6789-abcd-ef0123456789")
+```
+
 Content can also be opened for writing, by creating a transaction:
 
 ```go
@@ -63,6 +112,31 @@ today.AddBlock(content.NewBlock(
 // Save all the changes made
 err = tx.Save()
 ```
+
+Pages can be renamed and deleted in a transaction as well. Renaming points all
+the references to the page, such as `[[Old]]` and `#Old`, at the new title,
+which requires the graph to be opened with indexing enabled:
+
+```go
+tx := graph.NewTransaction()
+
+err = tx.RenamePage(ctx, "Old", "New")
+err = tx.DeletePage("Unwanted")
+
+err = tx.Save()
+```
+
+Pages in the namespace of a renamed page keep their titles, unless the rename
+asks for them to come along:
+
+```go
+// Renames Old, Old/Child and Old/Child/Grandchild
+err = tx.RenamePage(ctx, "Old", "New", logseq.WithNamespaceChildren())
+```
+
+Deleted pages are removed from the graph, unless the graph is opened with
+`logseq.WithRecycleDeletedPages()`, in which case they are moved to the
+`logseq/.recycle` directory that Logseq recovers deleted pages from.
 
 ## Limitations
 
@@ -135,3 +209,37 @@ separately as the page prefix when ranges are present. Source-tracking failures
 return an error rather than uncertain offsets. On range errors, the parsed
 root and `outlined` flag remain available with nil ranges, so single-block
 consumers can retain ordinary parsing behavior when `outlined` is false.
+
+## Compatible parsing and page navigation
+
+The existing `Page` interface and parsing function signatures remain unchanged.
+Pages opened by the graph also implement the optional `logseq.PageNavigation`
+interface. Use a type assertion to access aliases, namespaces, linked references,
+`ContentBlocks()` (including the unbulleted pre-block) and `PageProperties()`
+(page-level properties before the first bullet). `Page.Blocks()` still returns
+bullet blocks, and `Page.Properties()` still accesses the first bullet's properties.
+
+Default parsing keeps raw logbook entries and the existing priority and alias
+representations. Opt into structured logbook entries, stricter priority parsing
+or built-in list properties through `logseq.ParseBlockWithOptions`:
+
+```go
+block, err := logseq.ParseBlockWithOptions(text,
+  logseq.WithTypedLogbooks(),
+  logseq.WithStrictPriorities(),
+  logseq.WithBuiltInPropertyLists(),
+)
+```
+
+`content.TaskPriority` aliases the existing `content.Priority` node;
+`content.PriorityA`, `PriorityB` and `PriorityC` name the existing priority values.
+
+Pass the same parser options to `logseq.WithParseOptions(...)` when opening a
+graph to enable those representations for loaded pages, indexing and graph
+parsing. Graph property configuration applies after these parser options.
+
+Default output retains the existing Markdown escaping and save behavior. Use
+`logseq.AsMarkdownWithOptions(node, logseq.WithStrictOutput())` for stricter
+literal escaping. Graphs accept `logseq.WithStrictMarkdownOutput()` for that
+formatting when saving, and `logseq.WithFinalNewline()` to end saved files with
+a newline. Neither option changes the default behavior.

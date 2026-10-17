@@ -5,8 +5,13 @@ import "github.com/andreoliwa/logseq-go/content"
 type Option func(*options)
 
 type options struct {
-	index          bool
-	indexDirectory string
+	parseOptions         []ParseOption
+	strictMarkdownOutput bool
+	index                bool
+	indexDirectory       string
+
+	recycleDeletedPages bool
+	finalNewline        bool
 
 	listener func(event OpenEvent)
 
@@ -29,6 +34,18 @@ func WithInMemoryIndex() Option {
 	return func(o *options) {
 		o.index = true
 		o.indexDirectory = ""
+	}
+}
+
+// WithRecycleDeletedPages makes deleted pages move into the `logseq/.recycle`
+// directory of the graph instead of being removed. That is where Logseq keeps
+// pages deleted in the app, so they can be recovered by moving them back.
+//
+// Files in the recycle directory keep their name, so recycling a page whose
+// name is already there replaces the previously recycled file.
+func WithRecycleDeletedPages() Option {
+	return func(o *options) {
+		o.recycleDeletedPages = true
 	}
 }
 
@@ -67,4 +84,17 @@ func WithBlockTimeFormatter(f func(string) content.InlineNode) Option {
 	return func(o *options) {
 		o.blockTimeFormatToNode = f
 	}
+}
+
+// WithFinalNewline ensures saved pages end with a newline, including new files.
+func WithFinalNewline() Option { return func(o *options) { o.finalNewline = true } }
+
+// WithStrictMarkdownOutput escapes literal Markdown according to Logseq syntax.
+func WithStrictMarkdownOutput() Option { return func(o *options) { o.strictMarkdownOutput = true } }
+
+// WithParseOptions opts into parsing representations for graph pages and blocks.
+// Graph property configuration is applied after these options.
+func WithParseOptions(opts ...ParseOption) Option {
+	copied := append([]ParseOption(nil), opts...)
+	return func(o *options) { o.parseOptions = append(o.parseOptions, copied...) }
 }

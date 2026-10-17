@@ -2,6 +2,7 @@ package markdown_test
 
 import (
 	"strings"
+	"time"
 
 	"github.com/andreoliwa/logseq-go/content"
 	"github.com/andreoliwa/logseq-go/internal/markdown"
@@ -65,6 +66,45 @@ var _ = Describe("Output", func() {
 			err = writer.Write(content.NewText("**bold**"))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(buf.String()).To(Equal("**bold**"))
+		})
+
+		It("can write text with brackets that should be escaped", func() {
+			writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+			err := writer.Write(content.NewText("abc [def] ghi"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc \\[def\\] ghi"))
+		})
+
+		It("keeps brackets of a priority unescaped", func() {
+			err := writer.Write(content.NewText("abc [#A] def"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc [#A] def"))
+		})
+
+		It("escapes brackets that would be read back as a footnote reference", func() {
+			writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+			err := writer.Write(content.NewText("abc [^1] def"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc \\[^1\\] def"))
+		})
+
+		It("escapes brackets that would be read back as a link", func() {
+			writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+			err := writer.Write(content.NewText("abc [#A](def) ghi"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc \\[#A\\](def) ghi"))
+		})
+
+		It("escapes around brackets that are kept unescaped", func() {
+			writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+			err := writer.Write(content.NewText("*a* [#A] *b*"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("\\*a\\* [#A] \\*b\\*"))
 		})
 
 		It("can write multiple text nodes", func() {
@@ -175,11 +215,42 @@ var _ = Describe("Output", func() {
 			Expect(buf.String()).To(Equal("~~abc~\\~def~~"))
 		})
 
+		It("can write highlight", func() {
+			err := writer.Write(content.NewHighlight(content.NewText("abc")))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("^^abc^^"))
+		})
+
+		It("can write highlight that contains ^^", func() {
+			err := writer.Write(content.NewHighlight(content.NewText("abc^^def")))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("^^abc^\\^def^^"))
+		})
+
 		It("can write code", func() {
 			err := writer.Write(content.NewCodeSpan("abc"))
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(buf.String()).To(Equal("`abc`"))
+		})
+
+		It("can write raw text", func() {
+			err := writer.Write(content.NewRawText("**abc** [[def]]"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("**abc** [[def]]"))
+		})
+
+		It("writes raw text in a paragraph without escaping it", func() {
+			err := writer.Write(content.NewParagraph(
+				content.NewText("a "),
+				content.NewRawText("*b*"),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("a *b*"))
 		})
 
 		It("can write code with backtick in it", func() {
@@ -194,6 +265,41 @@ var _ = Describe("Output", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(buf.String()).To(Equal("```abc``def```"))
+		})
+
+		It("can write code with separate backticks in it", func() {
+			err := writer.Write(content.NewCodeSpan("a`b`c"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("``a`b`c``"))
+		})
+
+		It("pads code starting with a backtick", func() {
+			err := writer.Write(content.NewCodeSpan("`abc"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("`` `abc ``"))
+		})
+
+		It("pads code ending with a backtick", func() {
+			err := writer.Write(content.NewCodeSpan("abc`"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("`` abc` ``"))
+		})
+
+		It("pads code surrounded by spaces", func() {
+			err := writer.Write(content.NewCodeSpan(" abc "))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("`  abc  `"))
+		})
+
+		It("does not pad code of only spaces", func() {
+			err := writer.Write(content.NewCodeSpan("  "))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("`  `"))
 		})
 	})
 
@@ -712,6 +818,272 @@ var _ = Describe("Output", func() {
 		})
 	})
 
+	Describe("Footnotes", func() {
+		It("can write a footnote reference", func() {
+			err := writer.Write(content.NewFootnoteRef("1"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("[^1]"))
+		})
+
+		It("escapes the brackets in a label", func() {
+			err := writer.Write(content.NewFootnoteRef("a]b"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("[^a\\]b]"))
+		})
+
+		It("can write a footnote definition", func() {
+			err := writer.Write(content.NewFootnoteDefinition("1",
+				content.NewText("The footnote"),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("[^1]: The footnote"))
+		})
+
+		It("indents the lines a footnote carries on over", func() {
+			err := writer.Write(content.NewFootnoteDefinition("1",
+				content.NewText("The").WithSoftLineBreak(),
+				content.NewText("footnote"),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("[^1]: The\n    footnote"))
+		})
+
+		It("can write a footnote definition after a paragraph", func() {
+			err := writer.Write(content.NewParagraph(content.NewText("abc")))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = writer.Write(content.NewFootnoteDefinition("1",
+				content.NewText("The footnote"),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc\n\n[^1]: The footnote"))
+		})
+
+		It("can write a footnote definition in a block", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewBlock(
+					content.NewParagraph(content.NewText("abc")),
+					content.NewFootnoteDefinition("1",
+						content.NewText("The footnote"),
+					).WithPreviousLineType(content.PreviousLineTypeNonBlank),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("- abc\n  [^1]: The footnote"))
+		})
+	})
+
+	Describe("Math", func() {
+		It("can write inline math", func() {
+			err := writer.Write(content.NewMath("E = mc^2"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("$E = mc^2$"))
+		})
+
+		It("can write displayed math", func() {
+			err := writer.Write(content.NewDisplayedMath("E = mc^2"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("$$E = mc^2$$"))
+		})
+
+		It("can write a math block", func() {
+			err := writer.Write(content.NewMathBlock("E = mc^2\n"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("$$\nE = mc^2\n$$"))
+		})
+
+		It("adds the line break a math block is missing", func() {
+			err := writer.Write(content.NewMathBlock("E = mc^2"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("$$\nE = mc^2\n$$"))
+		})
+
+		It("can write a math block in a block", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewBlock(
+					content.NewMathBlock("E = mc^2\n"),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("- $$\n  E = mc^2\n  $$"))
+		})
+
+		It("escapes text that would be read back as math", func() {
+			err := writer.Write(content.NewText("Not math: $x$"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("Not math: \\$x\\$"))
+		})
+
+		It("escapes every dollar sign of displayed math in text", func() {
+			err := writer.Write(content.NewText("Not math: $$x$$"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("Not math: \\$\\$x\\$\\$"))
+		})
+
+		It("leaves the dollar signs of amounts alone", func() {
+			err := writer.Write(content.NewText("It costs $5 and $10"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("It costs $5 and $10"))
+		})
+	})
+
+	Describe("Tables", func() {
+		It("can write a table with a header and a row", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("Name")),
+					content.NewTableCell(content.NewText("Value")),
+				),
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("a")),
+					content.NewTableCell(content.NewText("1")),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| Name | Value |\n" +
+					"| ---- | ----- |\n" +
+					"| a    | 1     |",
+			))
+		})
+
+		It("can write the alignment of the columns", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("a")),
+					content.NewTableCell(content.NewText("b")),
+					content.NewTableCell(content.NewText("c")),
+					content.NewTableCell(content.NewText("d")),
+				),
+			).WithAlignments(
+				content.TableAlignmentLeft,
+				content.TableAlignmentRight,
+				content.TableAlignmentCenter,
+				content.TableAlignmentNone,
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| a   | b   | c   | d   |\n" +
+					"| :-- | --: | :-: | --- |",
+			))
+		})
+
+		It("can write formatting in a cell", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("Name")),
+				),
+				content.NewTableRow(
+					content.NewTableCell(
+						content.NewStrong(content.NewText("a")),
+						content.NewText(" and "),
+						content.NewPageLink("Page"),
+					),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| Name               |\n" +
+					"| ------------------ |\n" +
+					"| **a** and [[Page]] |",
+			))
+		})
+
+		It("escapes a pipe in a cell", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("Name")),
+				),
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("a | b")),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| Name   |\n" +
+					"| ------ |\n" +
+					"| a \\| b |",
+			))
+		})
+
+		It("turns a line break in a cell into a space", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(
+						content.NewText("a").WithSoftLineBreak(),
+						content.NewText("b"),
+					),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| a b |\n" +
+					"| --- |",
+			))
+		})
+
+		It("fills in the cells a row is missing", func() {
+			err := writer.Write(content.NewTable(
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("a")),
+					content.NewTableCell(content.NewText("b")),
+				),
+				content.NewTableRow(
+					content.NewTableCell(content.NewText("c")),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"| a   | b   |\n" +
+					"| --- | --- |\n" +
+					"| c   |     |",
+			))
+		})
+
+		It("can write a table in a block", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewBlock(
+					content.NewTable(
+						content.NewTableRow(
+							content.NewTableCell(content.NewText("a")),
+						),
+					),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal(
+				"- | a   |\n" +
+					"  | --- |",
+			))
+		})
+
+		It("fails to write a table without rows", func() {
+			err := writer.Write(content.NewTable())
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
 	Describe("Thematic breaks", func() {
 		It("can write a thematic break", func() {
 			err := writer.Write(content.NewThematicBreak())
@@ -808,6 +1180,53 @@ var _ = Describe("Output", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(buf.String()).To(Equal("- abc\n- def\n  continued"))
+		})
+
+		It("can write a pre-block without a bullet", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewPreBlock(
+					content.NewProperties(
+						content.NewProperty("key", content.NewText("value")),
+					),
+					content.NewParagraph(content.NewText("abc")),
+				),
+				content.NewBlock(content.NewParagraph(content.NewText("block 1"))),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("key:: value\nabc\n- block 1"))
+		})
+
+		It("can write a pre-block as the only block", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewPreBlock(content.NewParagraph(content.NewText("abc"))),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("abc"))
+		})
+
+		It("writes a pre-block that is not first as a bullet", func() {
+			// The bullet-less form only parses back the same way at the start
+			// of a page, so anywhere else the block keeps its bullet.
+			err := writer.Write(content.NewBlock(
+				content.NewBlock(content.NewParagraph(content.NewText("block 1"))),
+				content.NewPreBlock(content.NewParagraph(content.NewText("abc"))),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("- block 1\n- abc"))
+		})
+
+		It("writes a nested pre-block as a bullet", func() {
+			err := writer.Write(content.NewBlock(
+				content.NewBlock(
+					content.NewPreBlock(content.NewParagraph(content.NewText("abc"))),
+				),
+			))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(buf.String()).To(Equal("- \n\t- abc"))
 		})
 	})
 
@@ -1027,6 +1446,139 @@ var _ = Describe("Output", func() {
 			})
 		})
 
+		Describe("Priorities", func() {
+			It("can write a priority", func() {
+				err := writer.Write(content.NewParagraph(
+					content.NewTaskMarker(content.TaskStatusTodo),
+					content.NewTaskPriority(content.PriorityA),
+					content.NewText("Task"),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("TODO [#A] Task"))
+			})
+
+			It("can write a priority without a marker", func() {
+				err := writer.Write(content.NewParagraph(
+					content.NewTaskPriority(content.PriorityB),
+					content.NewText("Task"),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("[#B] Task"))
+			})
+
+			It("can write a priority without content after it", func() {
+				writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+				err := writer.Write(content.NewParagraph(
+					content.NewTaskPriority(content.PriorityC),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("[#C]"))
+			})
+
+			It("writes nothing for no priority", func() {
+				writer = markdown.NewWriter(buf, markdown.WithStrictOutput())
+				err := writer.Write(content.NewParagraph(
+					content.NewTaskPriority(content.PriorityNone),
+					content.NewText("Task"),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("Task"))
+			})
+		})
+
+		Describe("Scheduled and deadline", func() {
+			It("can write SCHEDULED", func() {
+				err := writer.Write(content.NewScheduled(
+					time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("SCHEDULED: <2024-01-15 Mon>"))
+			})
+
+			It("can write DEADLINE", func() {
+				err := writer.Write(content.NewDeadline(
+					time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("DEADLINE: <2024-01-15 Mon>"))
+			})
+
+			It("drops the time of day when the date does not have one", func() {
+				err := writer.Write(content.NewScheduled(
+					time.Date(2024, time.January, 15, 9, 30, 0, 0, time.Local),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("SCHEDULED: <2024-01-15 Mon>"))
+			})
+
+			It("can write a date with a time of day", func() {
+				err := writer.Write(content.NewScheduledWithTime(
+					time.Date(2024, time.January, 15, 9, 30, 0, 0, time.Local),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("SCHEDULED: <2024-01-15 Mon 09:30>"))
+			})
+
+			It("can write all of the repeater types", func() {
+				date := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)
+
+				for repeaterType, expected := range map[content.RepeaterType]string{
+					content.RepeaterTypeCumulate: "+2d",
+					content.RepeaterTypeCatchUp:  "++2d",
+					content.RepeaterTypeRestart:  ".+2d",
+				} {
+					out := &strings.Builder{}
+					err := markdown.NewWriter(out).Write(content.NewScheduled(date).WithRepeater(
+						content.NewRepeater(repeaterType, 2, content.RepeaterUnitDay),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(out.String()).To(Equal("SCHEDULED: <2024-01-15 Mon " + expected + ">"))
+				}
+			})
+
+			It("can write all of the repeater units", func() {
+				date := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)
+
+				for unit, expected := range map[content.RepeaterUnit]string{
+					content.RepeaterUnitHour:  ".+1h",
+					content.RepeaterUnitDay:   ".+1d",
+					content.RepeaterUnitWeek:  ".+1w",
+					content.RepeaterUnitMonth: ".+1m",
+					content.RepeaterUnitYear:  ".+1y",
+				} {
+					out := &strings.Builder{}
+					err := markdown.NewWriter(out).Write(content.NewScheduled(date).WithRepeater(
+						content.NewRepeater(content.RepeaterTypeRestart, 1, unit),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(out.String()).To(Equal("SCHEDULED: <2024-01-15 Mon " + expected + ">"))
+				}
+			})
+
+			It("writes the date on the line after the task", func() {
+				err := writer.Write(content.NewBlock(
+					content.NewParagraph(
+						content.NewTaskMarker(content.TaskStatusTodo),
+						content.NewText("Task"),
+					),
+					content.NewScheduled(time.Date(2024, time.January, 15, 0, 0, 0, 0, time.Local)),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal("TODO Task\nSCHEDULED: <2024-01-15 Mon>"))
+			})
+		})
+
 		Describe("Logbooks", func() {
 			It("can write empty logbook", func() {
 				err := writer.Write(content.NewLogbook())
@@ -1052,6 +1604,155 @@ var _ = Describe("Output", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(buf.String()).To(Equal(":LOGBOOK:\nabc\ndef\n:END:"))
+			})
+
+			It("can write a clock entry", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+						time.Date(2023, time.June, 26, 17, 25, 58, 0, time.Local),
+					),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]--[2023-06-26 Mon 17:25:58] =>  00:00:02\n:END:"))
+			})
+
+			It("can write a clock entry that is still running", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+						time.Time{},
+					),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]\n:END:"))
+			})
+
+			It("derives the duration of a clock entry from its times", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 9, 0, 0, 0, time.Local),
+						time.Date(2023, time.June, 27, 11, 30, 45, 0, time.Local),
+					),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 09:00:00]--[2023-06-27 Tue 11:30:45] =>  26:30:45\n:END:"))
+			})
+
+			It("fails on a clock entry that ends before it starts", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryClock(
+						time.Date(2023, time.June, 26, 17, 25, 58, 0, time.Local),
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+				))
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("can write a state change", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryStateChange(
+						content.TaskStatusTodo,
+						content.TaskStatusDone,
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal(":LOGBOOK:\n* State \"DONE\" from \"TODO\" [2023-06-26 Mon 17:25:56]\n:END:"))
+			})
+
+			It("can write a state change without a previous status", func() {
+				err := writer.Write(content.NewLogbook(
+					content.NewLogbookEntryStateChange(
+						content.TaskStatusNone,
+						content.TaskStatusDone,
+						time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+					),
+				))
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(buf.String()).To(Equal(":LOGBOOK:\n* State \"DONE\" [2023-06-26 Mon 17:25:56]\n:END:"))
+			})
+
+			Describe("Without second support", func() {
+				BeforeEach(func() {
+					writer = markdown.NewWriter(buf, markdown.WithLogbookSeconds(false))
+				})
+
+				It("can write a clock entry", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryClock(
+							time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+							time.Date(2023, time.June, 26, 17, 27, 0, 0, time.Local),
+						),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:02\n:END:"))
+				})
+
+				It("can write a clock entry that is still running", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryClock(
+							time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+							time.Time{},
+						),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]\n:END:"))
+				})
+
+				It("measures the duration between the times as they are written", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryClock(
+							time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+							time.Date(2023, time.June, 26, 17, 27, 4, 0, time.Local),
+						),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:02\n:END:"))
+				})
+
+				It("writes a clock entry spanning more than a day", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryClock(
+							time.Date(2023, time.June, 26, 9, 0, 0, 0, time.Local),
+							time.Date(2023, time.June, 27, 11, 30, 0, 0, time.Local),
+						),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(buf.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 09:00]--[2023-06-27 Tue 11:30] =>  26:30\n:END:"))
+				})
+
+				It("fails on a clock entry that ends before it starts", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryClock(
+							time.Date(2023, time.June, 26, 17, 25, 58, 0, time.Local),
+							time.Date(2023, time.June, 26, 17, 25, 56, 0, time.Local),
+						),
+					))
+					Expect(err).To(HaveOccurred())
+				})
+
+				It("can write a state change", func() {
+					err := writer.Write(content.NewLogbook(
+						content.NewLogbookEntryStateChange(
+							content.TaskStatusTodo,
+							content.TaskStatusDone,
+							time.Date(2023, time.June, 26, 17, 25, 0, 0, time.Local),
+						),
+					))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(buf.String()).To(Equal(":LOGBOOK:\n* State \"DONE\" from \"TODO\" [2023-06-26 Mon 17:25]\n:END:"))
+				})
 			})
 		})
 	})

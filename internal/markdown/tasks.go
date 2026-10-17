@@ -2,17 +2,120 @@ package markdown
 
 import (
 	"bytes"
+	"regexp"
+	"strings"
+	"time"
 
+	"github.com/andreoliwa/logseq-go/content"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
 
+// logbookTimeLayout is the timestamp format used inside logbook entries. The
+// day name is only there for readability and is regenerated on output.
+const logbookTimeLayout = "2006-01-02 Mon 15:04:05"
+
+// logbookTimeLayoutWithoutSeconds is the timestamp format of graphs where
+// `:logbook/settings :with-second-support?` is off.
+const logbookTimeLayoutWithoutSeconds = "2006-01-02 Mon 15:04"
+
+// clockRegexp matches a clock entry. The duration at the end is not captured
+// as it is derived from the two timestamps when the entry is written.
+var clockRegexp = regexp.MustCompile(`^CLOCK: \[([^\]]+)\](?:--\[([^\]]+)\] +=> +\d+:\d{2}(?::\d{2})?)?$`)
+
+// stateChangeRegexp matches the entry Logseq writes when a repeating task
+// changes status.
+var stateChangeRegexp = regexp.MustCompile(`^\* State "([^"]+)"(?: +from "([^"]+)")? +\[([^\]]+)\]$`)
+
+// parseLogbookEntry parses a single line of a logbook, falling back to a raw
+// entry for anything this library does not model so that it survives being
+// written back out.
+func parseLogbookEntry(value string) content.LogbookEntry {
+	line := strings.TrimRight(value, " \t\r")
+
+	if entry := parseLogbookClock(line); entry != nil {
+		return entry
+	}
+
+	if entry := parseLogbookStateChange(line); entry != nil {
+		return entry
+	}
+
+	return content.NewLogbookEntryRaw(value)
+}
+
+// parseLogbookTime reads a timestamp of a logbook entry. Both precisions are
+// accepted, as a graph without second support leaves the seconds out.
+func parseLogbookTime(value string) (time.Time, error) {
+	parsed, err := time.ParseInLocation(logbookTimeLayout, value, time.Local)
+	if err == nil {
+		return parsed, nil
+	}
+
+	return time.ParseInLocation(logbookTimeLayoutWithoutSeconds, value, time.Local)
+}
+
+func parseLogbookClock(line string) content.LogbookEntry {
+	matches := clockRegexp.FindStringSubmatch(line)
+	if matches == nil {
+		return nil
+	}
+
+	start, err := parseLogbookTime(matches[1])
+	if err != nil {
+		return nil
+	}
+
+	var end time.Time
+	if matches[2] != "" {
+		end, err = parseLogbookTime(matches[2])
+		if err != nil {
+			return nil
+		}
+
+		if end.Before(start) {
+			// The entry can not be written back out, so keep it as it is.
+			return nil
+		}
+	}
+
+	return content.NewLogbookEntryClock(start, end)
+}
+
+func parseLogbookStateChange(line string) content.LogbookEntry {
+	matches := stateChangeRegexp.FindStringSubmatch(line)
+	if matches == nil {
+		return nil
+	}
+
+	to := taskStatusFor(matches[1])
+	if to == content.TaskStatusNone {
+		return nil
+	}
+
+	var from content.TaskStatus
+	if matches[2] != "" {
+		from = taskStatusFor(matches[2])
+		if from == content.TaskStatusNone {
+			return nil
+		}
+	}
+
+	at, err := parseLogbookTime(matches[3])
+	if err != nil {
+		return nil
+	}
+
+	return content.NewLogbookEntryStateChange(from, to, at)
+}
+
 var logbookKind = ast.NewNodeKind("Logbook")
 
 type logbook struct {
 	ast.BaseBlock
+	Typed bool
 }
 
 func (n *logbook) Kind() ast.NodeKind {
@@ -54,6 +157,9 @@ func (b *logbookParser) Open(parent ast.Node, reader text.Reader, pc parser.Cont
 
 	// Create the block
 	block := &logbook{}
+	if options, ok := pc.Get(parseOptionsKey).(*parseOptions); ok {
+		block.Typed = options.typedLogbooks
+	}
 
 	// Store the block in the context
 	pc.Set(logbookInfoKey, &logbookBlockData{

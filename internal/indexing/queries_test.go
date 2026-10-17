@@ -25,6 +25,11 @@ func indexPage(idx *indexing.BlugeIndex, subPath string, title string, blocks ..
 		Title:        title,
 		Blocks:       blocks,
 	}
+	if len(blocks) > 0 {
+		if properties, ok := blocks[0].FirstChild().(*content.Properties); ok {
+			page.Properties = properties
+		}
+	}
 	Expect(idx.IndexPage(ctx, page)).To(Succeed())
 	Expect(idx.Sync()).To(Succeed())
 }
@@ -217,6 +222,18 @@ var _ = Describe("Queries", func() {
 			Expect(results).To(HaveLen(1))
 			Expect(results[0].PageSubPath).To(Equal("pages/a.md"))
 		})
+
+		It("matches pages by raw text content", func() {
+			indexPage(idx, "pages/a.md", "Page A",
+				content.NewBlock(content.NewParagraph(
+					content.NewRawText("**pre-generated** content"),
+				)),
+			)
+
+			results := searchPages(idx, indexing.ContentMatches("pre-generated"))
+			Expect(results).To(HaveLen(1))
+			Expect(results[0].Title).To(Equal("Page A"))
+		})
 	})
 
 	Describe("PropertyMatches", func() {
@@ -281,6 +298,35 @@ var _ = Describe("Queries", func() {
 			)
 			indexPage(idx, "pages/b.md", "Page B",
 				content.NewBlock(content.NewParagraph(content.NewText("no refs"))),
+			)
+
+			results := searchPages(idx, indexing.References("Target"))
+			Expect(results).To(HaveLen(1))
+			Expect(results[0].Title).To(Equal("Page A"))
+		})
+
+		It("matches references that differ in case", func() {
+			indexPage(idx, "pages/a.md", "Page A",
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewText("see "),
+						content.NewPageLink("target"),
+					),
+				),
+			)
+
+			results := searchPages(idx, indexing.References("Target"))
+			Expect(results).To(HaveLen(1))
+			Expect(results[0].Title).To(Equal("Page A"))
+		})
+
+		It("matches pages that embed another page", func() {
+			indexPage(idx, "pages/a.md", "Page A",
+				content.NewBlock(
+					content.NewParagraph(
+						content.NewPageEmbed("Target"),
+					),
+				),
 			)
 
 			results := searchPages(idx, indexing.References("Target"))

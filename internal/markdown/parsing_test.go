@@ -2556,3 +2556,15 @@ var _ = Describe("Source range failures", func() {
 		Entry("single-block prose prefix", "Introduction\n\n- One\n\n---\n\n- Two", false),
 	)
 })
+
+var _ = Describe("Typed clock compatibility", func() {
+	It("keeps task transitions working with structured logbook entries", func() {
+		block, err := markdown.ParseString("DOING work\n:LOGBOOK:\nCLOCK: [2025-04-05 Sat 01:00:00]\n:END:", markdown.WithTypedLogbooks())
+		Expect(err).NotTo(HaveOccurred())
+		marker := block.Content().FindDeep(content.IsOfType[*content.TaskMarker]()).(*content.TaskMarker)
+		_, err = marker.WithStatus(content.TaskStatusTodo)
+		Expect(err).NotTo(HaveOccurred())
+		clock := block.Children().FindDeep(content.IsOfType[*content.LogbookEntryClock]()).(*content.LogbookEntryClock)
+		Expect(clock.IsRunning()).To(BeFalse())
+	})
+})

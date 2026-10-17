@@ -32,6 +32,12 @@ func ContentMatches(text string) Query {
 	return indexing.ContentMatches(text)
 }
 
+// BlockIDEquals matches the block with the given id, which is the identifier
+// that block references such as `((id))` point at.
+func BlockIDEquals(id string) Query {
+	return indexing.BlockIDEquals(id)
+}
+
 func PropertyMatches(property, text string) Query {
 	return indexing.PropertyMatches(property, text)
 }
@@ -46,6 +52,24 @@ func PropertyReferences(property, target string) Query {
 
 func PropertyReferencesTag(property, tag string) Query {
 	return indexing.PropertyReferencesTag(property, tag)
+}
+
+// InNamespace matches the pages that are directly in a namespace, so `Parent`
+// matches the page `Parent/Child` but not `Parent/Child/Grandchild`.
+func InNamespace(namespace string) Query {
+	return indexing.InNamespace(namespace)
+}
+
+// UnderNamespace matches the pages anywhere in a namespace, so `Parent` matches
+// both `Parent/Child` and `Parent/Child/Grandchild`.
+func UnderNamespace(namespace string) Query {
+	return indexing.UnderNamespace(namespace)
+}
+
+// HasAlias matches the page that has the given title as one of the aliases in
+// its `alias` property.
+func HasAlias(alias string) Query {
+	return indexing.HasAlias(alias)
 }
 
 func References(page string) Query {

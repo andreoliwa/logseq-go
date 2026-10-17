@@ -433,3 +433,17 @@ var _ = Describe("CalculateClockDuration and FormatClockEntry", func() {
 		),
 	)
 })
+
+var _ = Describe("Typed clock status transitions", func() {
+	It("stops a typed running clock when returning to TODO", func() {
+		clock := content.NewLogbookEntryClock(time.Now().Add(-time.Hour), time.Time{})
+		marker := content.NewTaskMarker(content.TaskStatusDoing)
+		paragraph := content.NewParagraph(marker)
+		block := content.NewBlock(paragraph, content.NewLogbook(clock))
+		marker.SetParentReferences(paragraph, block)
+		_, err := marker.WithStatus(content.TaskStatusTodo)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(clock.IsRunning()).To(BeFalse())
+		Expect(clock.Duration()).To(BeNumerically(">=", time.Hour))
+	})
+})

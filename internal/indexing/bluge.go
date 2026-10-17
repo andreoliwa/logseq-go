@@ -238,18 +238,54 @@ func (i *BlugeIndex) pageToDocument(doc *Page) (*bluge.Document, error) {
 	case PageTypeDedicated:
 		blugeDoc.AddField(bluge.NewKeywordField("type", "page").StoreValue())
 		blugeDoc.AddField(bluge.NewTextField("title", doc.Title).StoreValue())
+
+		// The namespaces of a page are indexed both as the one it is directly
+		// in and as all of them, so that the pages of a namespace can be found
+		// with or without the ones deeper in it.
+		namespaces := utils.NamespacesOf(doc.Title)
+		if len(namespaces) > 0 {
+			blugeDoc.AddField(bluge.NewKeywordField("namespace", normalizeRef(namespaces[0])))
+
+			for _, namespace := range namespaces {
+				blugeDoc.AddField(bluge.NewKeywordField("namespaces", normalizeRef(namespace)))
+			}
+		}
 	case PageTypeJournal:
 		blugeDoc.AddField(bluge.NewKeywordField("type", "journal").StoreValue())
 		blugeDoc.AddField(bluge.NewDateTimeField("date", doc.Date).StoreValue())
 	}
 
-	if len(doc.Blocks) > 0 {
-		props := doc.Blocks[0].Properties()
-		i.transferProperties(blugeDoc, props)
-		i.transferRefs(blugeDoc, "pages", doc.Blocks[0])
+	// Aliases are matched the same way references are, so that a page can be
+	// found via a title that only differs in case from the alias.
+	for _, alias := range doc.Aliases {
+		blugeDoc.AddField(bluge.NewKeywordField("alias:ref", normalizeRef(alias)))
+	}
 
-		preview := generatePreview(doc.Blocks[0].Children())
-		blugeDoc.AddField(bluge.NewKeywordField("preview", preview).StoreValue())
+	if doc.Properties != nil {
+		i.transferProperties(blugeDoc, doc.Properties)
+		i.transferRefs(blugeDoc, "pages", doc.Properties)
+	}
+
+	// References in the block a page opens with are references of the page
+	// itself. The pre-block holding the content before the first bullet is part
+	// of that opening, so it is taken together with the first bullet.
+	for _, block := range doc.Blocks {
+		i.transferRefs(blugeDoc, "pages", block)
+
+		if !block.IsPreBlock() {
+			break
+		}
+	}
+
+	// The preview is the first thing a reader would see on the page, so skip
+	// past blocks that render as nothing, such as a pre-block of only
+	// properties.
+	for _, block := range doc.Blocks {
+		preview := generatePreview(block.Children())
+		if preview != "" {
+			blugeDoc.AddField(bluge.NewKeywordField("preview", preview).StoreValue())
+			break
+		}
 	}
 
 	var fullText strings.Builder
@@ -365,8 +401,11 @@ func (i *BlugeIndex) blockToDocument(page *Page, id string, block *content.Block
 		blugeDoc.AddField(bluge.NewKeywordField("id", id).StoreValue())
 	}
 
-	props := block.Properties()
-	i.transferProperties(blugeDoc, props)
+	// Look up the properties without creating them, as indexing should not
+	// modify the block.
+	if props := block.FindProperties(); props != nil {
+		i.transferProperties(blugeDoc, props)
+	}
 	i.transferRefs(blugeDoc, "pages", block)
 	i.transferLinks(blugeDoc, block)
 
@@ -429,14 +468,23 @@ func (i *BlugeIndex) transferProperties(doc *bluge.Document, properties *content
 }
 
 func (i *BlugeIndex) transferRefs(doc *bluge.Document, field string, root content.HasChildren) {
-	refs := root.Children().FilterDeep(content.IsOfType[content.PageRef]())
+	refs := root.Children().PageReferences()
 	for _, ref := range refs {
-		doc.AddField(bluge.NewKeywordField(field+":ref", ref.(content.PageRef).GetTo()))
+		doc.AddField(bluge.NewKeywordField(field+":ref", normalizeRef(ref.(content.PageRef).GetTo())))
 
 		if hashtag, ok := ref.(*content.Hashtag); ok {
-			doc.AddField(bluge.NewKeywordField(field+":tag", hashtag.GetTo()))
+			doc.AddField(bluge.NewKeywordField(field+":tag", normalizeRef(hashtag.GetTo())))
 		}
 	}
+}
+
+// normalizeRef brings a page title into the form it is indexed and queried in,
+// used for the fields that hold a title rather than text. Logseq does not
+// distinguish between page titles that only differ in case, so `[[example]]`
+// and `[[Example]]` are references to the same page and have to match the same
+// query.
+func normalizeRef(title string) string {
+	return strings.ToLower(title)
 }
 
 func (i *BlugeIndex) transferLinks(doc *bluge.Document, root content.HasChildren) {
@@ -540,6 +588,10 @@ func generatePreview(nodes content.NodeList) string {
 			return plainText(n.Children())
 		case *content.CodeBlock:
 			return n.Code
+		case *content.Table:
+			return plainText(n.Children())
+		case *content.MathBlock:
+			return n.Value
 		}
 	}
 
@@ -560,10 +612,14 @@ func plainText0(nodes content.NodeList, builder *strings.Builder) {
 			if n.SoftLineBreak || n.HardLineBreak {
 				builder.WriteRune('\n')
 			}
+		case *content.RawText:
+			builder.WriteString(n.Value)
 		case *content.Hashtag:
 			builder.WriteString("#")
 			builder.WriteString(n.To)
 		case *content.PageLink:
+			builder.WriteString(n.To)
+		case *content.PageRefText:
 			builder.WriteString(n.To)
 		case *content.CodeSpan:
 			builder.WriteString(n.Value)
@@ -573,6 +629,20 @@ func plainText0(nodes content.NodeList, builder *strings.Builder) {
 			}
 
 			builder.WriteString(n.Code)
+		case *content.Math:
+			builder.WriteString(n.Value)
+		case *content.MathBlock:
+			if builder.Len() > 0 {
+				builder.WriteString("\n\n")
+			}
+
+			builder.WriteString(n.Value)
+		case *content.TableRow:
+			plainText0(n.Children(), builder)
+			builder.WriteRune('\n')
+		case *content.TableCell:
+			plainText0(n.Children(), builder)
+			builder.WriteRune(' ')
 		case *content.Properties:
 			// Skip properties
 		case content.HasChildren:
@@ -620,13 +690,18 @@ func mapQuery(q Query) bluge.Query {
 			return bluge.NewTermQuery(query.value).SetField(query.field + ":value")
 		}
 
-		return bluge.NewTermQuery(query.value).SetField(query.field)
-	case *fieldRefs:
-		if query.tag {
-			return bluge.NewTermQuery(query.target).SetField(query.field + ":tag")
+		value := query.value
+		if query.normalized {
+			value = normalizeRef(value)
 		}
 
-		return bluge.NewTermQuery(query.target).SetField(query.field + ":ref")
+		return bluge.NewTermQuery(value).SetField(query.field)
+	case *fieldRefs:
+		if query.tag {
+			return bluge.NewTermQuery(normalizeRef(query.target)).SetField(query.field + ":tag")
+		}
+
+		return bluge.NewTermQuery(normalizeRef(query.target)).SetField(query.field + ":ref")
 	default:
 		return bluge.NewMatchNoneQuery()
 	}

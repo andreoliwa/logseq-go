@@ -3,10 +3,12 @@ package markdown
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 var propertyRegex = regexp.MustCompile(`^([a-zA-Z0-9_-]+)::`)
@@ -29,7 +31,13 @@ var propertyKind = ast.NewNodeKind("Property")
 
 type property struct {
 	ast.BaseBlock
-	Name string
+	Name          string
+	OriginalValue string
+	Structured    bool
+
+	// PageRefsIgnored is whether the pages named in the value are read as text
+	// instead of as references, as set by `:ignored-page-references-keywords`.
+	PageRefsIgnored bool
 }
 
 func (*property) Kind() ast.NodeKind {
@@ -37,6 +45,26 @@ func (*property) Kind() ast.NodeKind {
 }
 
 func (n *property) Dump(source []byte, level int) {
+	ast.DumpHelper(n, source, level, nil, nil)
+}
+
+var pageRefTextKind = ast.NewNodeKind("PageRefText")
+
+// pageRefText is a page referenced by its title alone, without any markup
+// around it, which is how the values of the properties that hold a list of
+// pages are written.
+type pageRefText struct {
+	ast.BaseInline
+
+	// Segment is where the title of the page is in the source.
+	Segment text.Segment
+}
+
+func (*pageRefText) Kind() ast.NodeKind {
+	return pageRefTextKind
+}
+
+func (n *pageRefText) Dump(source []byte, level int) {
 	ast.DumpHelper(n, source, level, nil, nil)
 }
 
@@ -70,6 +98,177 @@ func (t *propertiesASTTransformer) Transform(node *ast.Document, reader text.Rea
 	for _, n := range nodesToTransform {
 		t.transformTextBlockOrParagraph(n, reader)
 	}
+
+	// How the value of a property is read depends on the settings of the graph,
+	// which are applied once the properties have been found.
+	options, _ := pc.Get(parseOptionsKey).(*parseOptions)
+	if options == nil {
+		defaults := defaultParseOptions()
+		options = &defaults
+	}
+
+	_ = ast.Walk(node, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if properties, ok := node.(*properties); ok && entering {
+			applyOptionsToProperties(properties, reader, options)
+		}
+
+		return ast.WalkContinue, nil
+	})
+}
+
+// applyOptionsToProperties reads the values of a block of properties the way
+// the settings of the graph say they should be read.
+func applyOptionsToProperties(node *properties, reader text.Reader, options *parseOptions) {
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		property, ok := child.(*property)
+		if !ok {
+			continue
+		}
+
+		property.Structured = options.builtInPropertyLists
+		if options.ignoresPageReferences(property.Name) {
+			// The value of this property is only text, so it is left as it was
+			// parsed and marked as not pointing at any page.
+			property.PageRefsIgnored = true
+			continue
+		}
+
+		if options.isSeparatedByCommas(property.Name) {
+			splitValueIntoPageRefs(property, reader)
+		}
+	}
+}
+
+// subSegment is the part of a segment between two offsets into its text.
+func subSegment(segment text.Segment, start int, stop int) text.Segment {
+	part := segment.WithStart(segment.Start + start)
+	return part.WithStop(segment.Start + stop)
+}
+
+// isValueSeparator checks if a rune separates the values of a property that
+// holds a list, which are the two commas Logseq splits such a value on.
+func isValueSeparator(r rune) bool {
+	return r == ',' || r == '，'
+}
+
+// splitValueIntoPageRefs turns the text of a property value into references to
+// the pages it names. Only the text is split, so pages that are written as
+// links are left as they are, as are the separators and the space around the
+// titles.
+func splitValueIntoPageRefs(node *property, reader text.Reader) {
+	source := reader.Source()
+
+	// A value is parsed into several text nodes, so the text that follows on
+	// from the text before it is gathered up and split as one, letting a title
+	// span more than one of them.
+	var run []ast.Node
+	var segment text.Segment
+
+	split := func() {
+		if len(run) == 0 {
+			return
+		}
+
+		for _, replacement := range pageRefsInValue(segment, source) {
+			node.InsertBefore(node, run[0], replacement)
+		}
+
+		for _, textNode := range run {
+			node.RemoveChild(node, textNode)
+		}
+
+		run = nil
+	}
+
+	var next ast.Node
+	for child := node.FirstChild(); child != nil; child = next {
+		next = child.NextSibling()
+
+		textNode, ok := child.(*ast.Text)
+		if !ok {
+			split()
+			continue
+		}
+
+		if len(run) > 0 && segment.Stop == textNode.Segment.Start {
+			segment = segment.WithStop(textNode.Segment.Stop)
+			run = append(run, child)
+			continue
+		}
+
+		split()
+
+		run = []ast.Node{child}
+		segment = textNode.Segment
+	}
+
+	split()
+}
+
+// pageRefsInValue splits the text of a property value on the separators,
+// turning each of the values into a reference to the page it names. The
+// separators and the space around the titles are kept as text, so that the
+// value is written back the way it was read.
+//
+// The value of a property ends with the line it starts on, so the line breaks
+// of its text have already been taken off and only the text of the segment is
+// left to split.
+func pageRefsInValue(segment text.Segment, source []byte) []ast.Node {
+	value := segment.Value(source)
+
+	nodes := make([]ast.Node, 0)
+
+	// keepText keeps a part of the text as it was written.
+	keepText := func(start int, stop int) {
+		if start >= stop {
+			return
+		}
+
+		nodes = append(nodes, ast.NewTextSegment(subSegment(segment, start, stop)))
+	}
+
+	// takePageRef turns one of the values into a reference to the page it
+	// names, leaving the space that surrounds the title out of the title.
+	takePageRef := func(start int, stop int) {
+		titleStart := start
+		for titleStart < stop && util.IsSpace(value[titleStart]) {
+			titleStart++
+		}
+
+		titleStop := stop
+		for titleStop > titleStart && util.IsSpace(value[titleStop-1]) {
+			titleStop--
+		}
+
+		keepText(start, titleStart)
+
+		if titleStop > titleStart {
+			ref := &pageRefText{}
+			ref.Segment = subSegment(segment, titleStart, titleStop)
+			nodes = append(nodes, ref)
+		}
+
+		keepText(titleStop, stop)
+	}
+
+	valueStart := 0
+	for i := 0; i < len(value); {
+		r, size := utf8.DecodeRune(value[i:])
+		if !isValueSeparator(r) {
+			i += size
+			continue
+		}
+
+		takePageRef(valueStart, i)
+		keepText(i, i+size)
+
+		i += size
+		valueStart = i
+	}
+
+	takePageRef(valueStart, len(value))
+
+	return nodes
 }
 
 func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, reader text.Reader) {
@@ -128,9 +327,14 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 					continue
 				}
 
+				// The value of the property starts after the name and the space
+				// that separates the two.
+				valueStart := matches[1]
+
 				// Check if there is a space after the ::
-				var propertyValueStart int
-				if !strings.HasPrefix(potentialName[matches[3]+2:], " ") {
+				if strings.HasPrefix(potentialName[valueStart:], " ") {
+					valueStart++
+				} else {
 					// There isn't a space after :: in the current text node
 					nextTextNode, _ := next.(*ast.Text)
 					if startsWithSpace(nextTextNode, reader) {
@@ -143,10 +347,6 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 						wasPreviousLinebreak = textNode.HardLineBreak() || textNode.SoftLineBreak()
 						continue
 					}
-					propertyValueStart = -1 // Value is in next text node
-				} else {
-					// The space is in the current text node, so the value starts after "key:: "
-					propertyValueStart = matches[3] + 3 // +2 for "::" and +1 for the space
 				}
 
 				if currentProperties == nil {
@@ -167,6 +367,16 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 
 				currentProperty = &property{}
 				currentProperty.Name = potentialName[matches[2]:matches[3]]
+				valueOffset := textNode.Segment.Start + matches[1]
+				source := reader.Source()
+				if valueOffset < len(source) && source[valueOffset] == ' ' {
+					valueOffset++
+				}
+				valueEnd := valueOffset
+				for valueEnd < len(source) && source[valueEnd] != '\n' {
+					valueEnd++
+				}
+				currentProperty.OriginalValue = strings.TrimRight(string(source[valueOffset:valueEnd]), " \t\r")
 
 				currentProperties.AppendChild(currentProperties, currentProperty)
 
@@ -176,21 +386,25 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 					previousTextNode.SetSoftLineBreak(false)
 				}
 
-				// Handle the property value
-				if propertyValueStart >= 0 {
-					// The property value is in the same text node
-					propertyValue := potentialName[propertyValueStart:]
-					if len(propertyValue) > 0 {
-						// Create a new text node for the property value
-						valueTextNode := ast.NewTextSegment(textNode.Segment.WithStart(textNode.Segment.Start + propertyValueStart))
-						valueTextNode.SetHardLineBreak(textNode.HardLineBreak())
-						valueTextNode.SetSoftLineBreak(textNode.SoftLineBreak())
-						currentProperty.AppendChild(currentProperty, valueTextNode)
-					}
+				// Only the name is taken out of the text node, as anything that
+				// follows it on the line is the start of the value.
+				textNode.Segment = textNode.Segment.WithStart(textNode.Segment.Start + valueStart)
+
+				if textNode.Segment.IsEmpty() {
+					node.RemoveChild(node, child)
+				} else {
+					currentProperty.AppendChild(currentProperty, child)
 				}
 
-				// Remove the text node with the parameter name
-				node.RemoveChild(node, child)
+				if textNode.HardLineBreak() || textNode.SoftLineBreak() {
+					// The value of the property ends with the line it starts on
+					currentProperty = nil
+
+					textNode.SetHardLineBreak(false)
+					textNode.SetSoftLineBreak(false)
+
+					wasPreviousLinebreak = true
+				}
 			} else {
 				wasPreviousLinebreak = textNode.HardLineBreak() || textNode.SoftLineBreak()
 			}

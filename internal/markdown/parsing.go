@@ -31,13 +31,18 @@ func init() {
 			util.Prioritized(parser.NewATXHeadingParser(), 600),
 			util.Prioritized(parser.NewFencedCodeBlockParser(), 700),
 			util.Prioritized(parser.NewBlockquoteParser(), 800),
+			util.Prioritized(&mathBlockParser{}, 896),
+			util.Prioritized(&taskDateParser{}, 897),
 			util.Prioritized(&logbookParser{}, 898),
 			util.Prioritized(&beginEndParser{}, 899),
 			util.Prioritized(parser.NewHTMLBlockParser(), 900),
+			util.Prioritized(&footnoteDefinitionParser{}, 999),
 			util.Prioritized(parser.NewParagraphParser(), 1000),
 		),
 		parser.WithInlineParsers(
 			util.Prioritized(parser.NewCodeSpanParser(), 100),
+			util.Prioritized(&footnoteRefParser{}, 194),
+			util.Prioritized(&mathParser{}, 195),
 			util.Prioritized(&priorityParser{}, 196),
 			util.Prioritized(&macroParser{}, 197),
 			util.Prioritized(&blockRefParser{}, 198),
@@ -48,6 +53,7 @@ func init() {
 			util.Prioritized(parser.NewRawHTMLParser(), 400),
 			util.Prioritized(parser.NewEmphasisParser(), 500),
 			util.Prioritized(extension.NewStrikethroughParser(), 501),
+			util.Prioritized(&highlightParser{}, 502),
 			util.Prioritized(extension.NewLinkifyParser(
 				extension.WithLinkifyEmailRegexp(neverMatch),
 				extension.WithLinkifyWWWRegexp(neverMatch),
@@ -55,15 +61,121 @@ func init() {
 		),
 		parser.WithParagraphTransformers(
 			util.Prioritized(parser.LinkReferenceParagraphTransformer, 100),
+			util.Prioritized(newTableParagraphTransformer(extension.NewTableParagraphTransformer()), 200),
 		),
 		parser.WithASTTransformers(
+			util.Prioritized(extension.NewTableASTTransformer(), 0),
 			util.Prioritized(defaultPropertiesASTTransformer, 200),
 		),
 	)
 }
 
-func Parse(src []byte) (*content.Block, error) {
-	doc := markdownParser.Parse(text.NewReader(src))
+// ParseOption changes how Markdown is read for the parts of the syntax that a
+// graph configures the shape of.
+type ParseOption func(*parseOptions)
+
+// parseOptionsKey is where the options of the current parse are kept, so that
+// the parts of parsing that Goldmark drives can reach them.
+var parseOptionsKey = parser.NewContextKey()
+
+// builtInPropertiesSeparatedByCommas are the properties whose value Logseq
+// always reads as a list of pages separated by commas, no matter what the
+// graph configures.
+var builtInPropertiesSeparatedByCommas = []string{"alias", "aliases", "tags"}
+
+// parseOptions are the settings that parsing takes from the graph. The zero
+// value is not usable; use defaultParseOptions for the compatible defaults.
+type parseOptions struct {
+	// propertiesSeparatedByCommas are the properties whose value is a list of
+	// pages separated by commas.
+	propertiesSeparatedByCommas map[string]struct{}
+
+	// ignoredPageReferences are the properties whose value never points at a
+	// page, even where it is written as a link.
+	ignoredPageReferences map[string]struct{}
+	typedLogbooks         bool
+	strictPriorities      bool
+	builtInPropertyLists  bool
+}
+
+// defaultParseOptions preserve the fork's existing node representations.
+func defaultParseOptions() parseOptions {
+	options := parseOptions{
+		propertiesSeparatedByCommas: make(map[string]struct{}),
+		ignoredPageReferences:       make(map[string]struct{}),
+	}
+
+	return options
+}
+
+// WithTypedLogbooks opts into structured CLOCK and state-change nodes.
+func WithTypedLogbooks() ParseOption { return func(o *parseOptions) { o.typedLogbooks = true } }
+
+// WithStrictPriorities opts into position-sensitive Logseq priority syntax.
+func WithStrictPriorities() ParseOption { return func(o *parseOptions) { o.strictPriorities = true } }
+
+// WithBuiltInPropertyLists opts into implicit page references in Logseq lists.
+func WithBuiltInPropertyLists() ParseOption {
+	return func(o *parseOptions) {
+		for _, name := range builtInPropertiesSeparatedByCommas {
+			o.propertiesSeparatedByCommas[name] = struct{}{}
+		}
+		o.builtInPropertyLists = true
+	}
+}
+
+// WithPropertiesSeparatedByCommas adds properties whose value is a list of
+// pages separated by commas, which is `:property/separated-by-commas`. The
+// built-in lists require WithBuiltInPropertyLists.
+func WithPropertiesSeparatedByCommas(names ...string) ParseOption {
+	return func(o *parseOptions) {
+		for _, name := range names {
+			o.propertiesSeparatedByCommas[normalizePropertyName(name)] = struct{}{}
+		}
+	}
+}
+
+// WithIgnoredPageReferences adds properties whose value does not point at a
+// page, which is `:ignored-page-references-keywords`.
+func WithIgnoredPageReferences(names ...string) ParseOption {
+	return func(o *parseOptions) {
+		for _, name := range names {
+			o.ignoredPageReferences[normalizePropertyName(name)] = struct{}{}
+		}
+	}
+}
+
+// isSeparatedByCommas checks if the value of the property with the given name
+// is a list of pages separated by commas.
+func (o *parseOptions) isSeparatedByCommas(name string) bool {
+	_, ok := o.propertiesSeparatedByCommas[normalizePropertyName(name)]
+	return ok
+}
+
+// ignoresPageReferences checks if the value of the property with the given
+// name points at pages or is only text.
+func (o *parseOptions) ignoresPageReferences(name string) bool {
+	_, ok := o.ignoredPageReferences[normalizePropertyName(name)]
+	return ok
+}
+
+// normalizePropertyName brings a property name into the form it is matched in,
+// as Logseq does not distinguish between property names that only differ in
+// case.
+func normalizePropertyName(name string) string {
+	return strings.ToLower(name)
+}
+
+func Parse(src []byte, opts ...ParseOption) (*content.Block, error) {
+	options := defaultParseOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	context := parser.NewContext()
+	context.Set(parseOptionsKey, &options)
+
+	doc := markdownParser.Parse(text.NewReader(src), parser.WithContext(context))
 	node, err := convert(src, doc)
 	if err != nil {
 		return nil, fmt.Errorf("Could not parse Markdown: %w", err)
@@ -76,10 +188,10 @@ func Parse(src []byte) (*content.Block, error) {
 	return nil, errors.New("Could not parse Markdown")
 }
 
-func ParseString(src string) (*content.Block, error) {
+func ParseString(src string, opts ...ParseOption) (*content.Block, error) {
 	// Pre-process the input to handle escaped tildes in strikethrough
 	preprocessed := preprocessEscapedTildes(src)
-	block, err := Parse([]byte(preprocessed))
+	block, err := Parse([]byte(preprocessed), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +241,16 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 		return convertEmphasis(src, node)
 	case *east.Strikethrough:
 		return convertStrikethrough(src, node)
+	case *highlight:
+		return convertHighlight(src, node)
+	case *footnoteRef:
+		return content.NewFootnoteRef(node.Label), nil
+	case *footnoteDefinition:
+		return convertFootnoteDefinition(src, node)
+	case *math:
+		return content.NewMath(node.Value).WithDisplayed(node.Displayed), nil
+	case *mathBlock:
+		return convertMathBlock(src, node)
 	case *ast.CodeSpan:
 		return convertCodeSpan(src, node)
 	case *ast.Link:
@@ -151,8 +273,12 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 		}
 	case *pageLink:
 		return content.NewPageLink(node.Page), nil
+	case *pageRefText:
+		return content.NewPageRefText(unescapeString(node.Segment.Value(src))), nil
 	case *blockRef:
 		return content.NewBlockRef(node.ID), nil
+	case *strictPriority:
+		return content.NewTaskPriority(node.Priority), nil
 	case *macro:
 		return convertMacro(src, node)
 	case *ast.FencedCodeBlock:
@@ -163,6 +289,8 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 		return convertBlockquote(src, node)
 	case *ast.List:
 		return convertList(src, node)
+	case *east.Table:
+		return convertTable(src, node)
 	case *ast.RawHTML:
 		return convertRawHTML(src, node)
 	case *ast.HTMLBlock:
@@ -177,6 +305,8 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 		return convertProperties(src, node)
 	case *logbook:
 		return convertLogbook(src, node)
+	case *taskDate:
+		return convertTaskDate(node)
 	}
 
 	return nil, fmt.Errorf("Could not convert node: %T", in)
@@ -233,7 +363,7 @@ func convertChildren(src []byte, node ast.Node, target content.HasChildren) erro
 		if pText, pOk := previousChild.(*ast.Text); pOk {
 			if text, ok := child.(*ast.Text); ok && canMergeTextNodes(pText, text) {
 				previousNode := target.LastChild().(*content.Text)
-				previousNode.Value += string(text.Segment.Value(src))
+				previousNode.Value += unescapeString(text.Segment.Value(src))
 				previousChild = child
 
 				previousNode.HardLineBreak = text.HardLineBreak()
@@ -397,7 +527,13 @@ func convertTaskMarker(paragraph *content.Paragraph, block *content.Block) {
 		return
 	}
 
-	textNode.Value = textNode.Value[potentialMarkerIdx+1:]
+	if potentialMarkerIdx < 0 {
+		// The marker is the entire text, so there is nothing left of it.
+		textNode.Value = ""
+	} else {
+		textNode.Value = textNode.Value[potentialMarkerIdx+1:]
+	}
+
 	if textNode.Value == "" {
 		textNode.RemoveSelf()
 	}
@@ -406,6 +542,35 @@ func convertTaskMarker(paragraph *content.Paragraph, block *content.Block) {
 	// Store parent references for use in WithStatus transitions
 	taskMarker.SetParentReferences(paragraph, block)
 	paragraph.PrependChild(taskMarker)
+}
+
+// taskStatusFor maps a task marker to its status, returning TaskStatusNone if
+// the word is not a marker.
+func taskStatusFor(marker string) content.TaskStatus {
+	switch marker {
+	case "TODO":
+		return content.TaskStatusTodo
+	case "DONE":
+		return content.TaskStatusDone
+	case "DOING":
+		return content.TaskStatusDoing
+	case "LATER":
+		return content.TaskStatusLater
+	case "NOW":
+		return content.TaskStatusNow
+	case "CANCELLED":
+		return content.TaskStatusCancelled
+	case "CANCELED":
+		return content.TaskStatusCanceled
+	case "IN-PROGRESS":
+		return content.TaskStatusInProgress
+	case "WAIT":
+		return content.TaskStatusWait
+	case "WAITING":
+		return content.TaskStatusWaiting
+	}
+
+	return content.TaskStatusNone
 }
 
 func convertParagraph(src []byte, node *ast.Paragraph) (*content.Paragraph, error) {
@@ -460,6 +625,12 @@ func convertLink(src []byte, node *ast.Link) (*content.Link, error) {
 func convertMacro(src []byte, node *macro) (content.Node, error) {
 	switch node.Name {
 	case "query":
+		// A query without a query string is not a query, keep it as a macro so
+		// it is written back the way it was found.
+		if len(node.Arguments) == 0 {
+			break
+		}
+
 		return content.NewQuery(node.Arguments[0]), nil
 	case "embed":
 		// Either a [[page]] or a ((block))
@@ -549,6 +720,15 @@ func convertStrikethrough(src []byte, node *east.Strikethrough) (*content.Strike
 	return strikethrough, nil
 }
 
+func convertHighlight(src []byte, node *highlight) (*content.Highlight, error) {
+	highlight := content.NewHighlight()
+	err := convertChildren(src, node, highlight)
+	if err != nil {
+		return nil, err
+	}
+	return highlight, nil
+}
+
 func convertCodeSpan(src []byte, node *ast.CodeSpan) (*content.CodeSpan, error) {
 	code := content.NewCodeSpan(string(node.Text(src)))
 	return code, nil
@@ -584,6 +764,34 @@ func convertCodeBlock(src []byte, node *ast.CodeBlock) (*content.CodeBlock, erro
 
 	updatePreviousLine(node, code)
 	return code, nil
+}
+
+func convertFootnoteDefinition(src []byte, node *footnoteDefinition) (*content.FootnoteDefinition, error) {
+	definition := content.NewFootnoteDefinition(unescapeString([]byte(node.Label)))
+	err := convertChildren(src, node, definition)
+	if err != nil {
+		return nil, err
+	}
+
+	updatePreviousLine(node, definition)
+
+	return definition, nil
+}
+
+func convertMathBlock(src []byte, node *mathBlock) (*content.MathBlock, error) {
+	// The lines of the formula are raw data, so they are put back together
+	// into the LaTeX between the lines that mark the block out.
+	valueBuf := bytes.Buffer{}
+	for i := 0; i < node.Lines().Len(); i++ {
+		line := node.Lines().At(i)
+		_, _ = valueBuf.Write(line.Value(src))
+	}
+
+	value := content.NewMathBlock(valueBuf.String())
+
+	updatePreviousLine(node, value)
+
+	return value, nil
 }
 
 func convertBlockquote(src []byte, node *ast.Blockquote) (*content.Blockquote, error) {
@@ -788,6 +996,57 @@ func convertListItem(src []byte, node ast.Node) (*content.ListItem, error) {
 	return item, nil
 }
 
+func convertTable(src []byte, node *east.Table) (*content.Table, error) {
+	table := content.NewTable()
+	for _, alignment := range node.Alignments {
+		table.Alignments = append(table.Alignments, tableAlignmentFor(alignment))
+	}
+
+	// The header of the table is its own type in Goldmark, but both it and the
+	// rows below it are a row of cells.
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		row, err := convertTableRow(src, child)
+		if err != nil {
+			return nil, err
+		}
+		table.AddChild(row)
+	}
+
+	updatePreviousLine(node, table)
+
+	return table, nil
+}
+
+func convertTableRow(src []byte, node ast.Node) (*content.TableRow, error) {
+	row := content.NewTableRow()
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		if _, ok := child.(*east.TableCell); !ok {
+			return nil, fmt.Errorf("Could not convert node: %T", child)
+		}
+
+		cell := content.NewTableCell()
+		err := convertChildren(src, child, cell)
+		if err != nil {
+			return nil, err
+		}
+		row.AddChild(cell)
+	}
+	return row, nil
+}
+
+func tableAlignmentFor(alignment east.Alignment) content.TableAlignment {
+	switch alignment {
+	case east.AlignLeft:
+		return content.TableAlignmentLeft
+	case east.AlignRight:
+		return content.TableAlignmentRight
+	case east.AlignCenter:
+		return content.TableAlignmentCenter
+	}
+
+	return content.TableAlignmentNone
+}
+
 func convertRawHTML(src []byte, node *ast.RawHTML) (*content.RawHTML, error) {
 	codeBuf := bytes.Buffer{}
 	for i := 0; i < node.Segments.Len(); i++ {
@@ -830,19 +1089,9 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 		}
 
 		// Special handling for alias properties: split by commas and create Alias node
-		if p.Name == content.PropertyNameAlias {
+		if p.Name == content.PropertyNameAlias && !p.Structured {
 			// Extract the full text value to preserve spacing (except trailing spaces at end of line)
-			var fullValue string
-			if p.FirstChild() != nil {
-				// Get all text content from the AST nodes
-				var textParts []string
-				for textChild := p.FirstChild(); textChild != nil; textChild = textChild.NextSibling() {
-					if textNode, ok := textChild.(*ast.Text); ok {
-						textParts = append(textParts, string(textNode.Segment.Value(src)))
-					}
-				}
-				fullValue = strings.Join(textParts, "")
-			}
+			fullValue := p.OriginalValue
 
 			// Split by commas and create Text nodes for each alias value
 			parts := strings.Split(fullValue, ",")
@@ -864,7 +1113,7 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 			}
 		} else {
 			// Regular property handling
-			prop := content.NewProperty(p.Name)
+			prop := content.NewProperty(p.Name).WithPageRefsIgnored(p.PageRefsIgnored)
 			err := convertChildren(src, p, prop)
 			if err != nil {
 				return nil, err
@@ -873,20 +1122,7 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 		}
 	}
 
-	if node.HasBlankPreviousLines() {
-		// The default behavior of properties is to combine with the previous
-		// line so keep explicit blank line info
-		properties.SetPreviousLineType(content.PreviousLineTypeBlank)
-	} else {
-		// Parsing didn't indicate blank lines before the node, but we might
-		// be the first node on this level in which case we set the type to
-		// automatic
-		if node.PreviousSibling() == nil {
-			properties.SetPreviousLineType(content.PreviousLineTypeAutomatic)
-		} else {
-			properties.SetPreviousLineType(content.PreviousLineTypeNonBlank)
-		}
-	}
+	updatePreviousLineKeepingBlank(node, properties)
 
 	// Check if there's a blank line after the properties
 	if nextSibling := node.NextSibling(); nextSibling != nil {
@@ -918,7 +1154,11 @@ func convertLogbook(src []byte, node *logbook) (content.Node, error) {
 	for i := 0; i < node.Lines().Len(); i++ {
 		line := node.Lines().At(i)
 		value := strings.TrimSuffix(string(line.Value(src)), "\n")
-		logbook.AddChild(content.NewLogbookEntryRaw(value))
+		if node.Typed {
+			logbook.AddChild(parseLogbookEntry(value))
+		} else {
+			logbook.AddChild(content.NewLogbookEntryRaw(value))
+		}
 	}
 
 	updatePreviousLine(node, logbook)
@@ -1033,6 +1273,20 @@ func extractOriginalListItemNumber(src []byte, listItem *ast.ListItem) int {
 	return 0
 }
 
+func convertTaskDate(node *taskDate) (content.Node, error) {
+	var date *content.TaskDate
+	if node.HasTime {
+		date = content.NewTaskDateWithTime(node.DateType, node.Date)
+	} else {
+		date = content.NewTaskDate(node.DateType, node.Date)
+	}
+	date.Repeater = node.Repeater
+
+	updatePreviousLineKeepingBlank(node, date)
+
+	return date, nil
+}
+
 // updatePreviousLine updates the PreviousLineType of the target based on the
 // node. This takes the information Goldmark parsed out and transfers it to
 // our nodes.
@@ -1077,6 +1331,10 @@ func (p *priorityParser) Trigger() []byte {
 }
 
 func (p *priorityParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
+	if options, ok := pc.Get(parseOptionsKey).(*parseOptions); ok && options.strictPriorities {
+		return (&strictPriorityParser{}).Parse(parent, block, pc)
+	}
+
 	line, _ := block.PeekLine()
 
 	if len(line) < 4 { // Need at least "[#X]"
@@ -1145,3 +1403,19 @@ func (p *priorityParser) Parse(parent ast.Node, block text.Reader, pc parser.Con
 }
 
 var _ parser.InlineParser = (*priorityParser)(nil)
+
+// updatePreviousLineKeepingBlank is updatePreviousLine for nodes that combine
+// with the previous line by default. For those a blank line before the node
+// has to be recorded explicitly, as the automatic behavior would drop it.
+func updatePreviousLineKeepingBlank(node ast.Node, target content.PreviousLineAware) {
+	if node.HasBlankPreviousLines() {
+		target.SetPreviousLineType(content.PreviousLineTypeBlank)
+	} else if node.PreviousSibling() == nil {
+		// Parsing didn't indicate blank lines before the node, but we might
+		// be the first node on this level in which case we set the type to
+		// automatic
+		target.SetPreviousLineType(content.PreviousLineTypeAutomatic)
+	} else {
+		target.SetPreviousLineType(content.PreviousLineTypeNonBlank)
+	}
+}

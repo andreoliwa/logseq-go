@@ -168,8 +168,9 @@ func (t *tagParser) Parse(parent ast.Node, block text.Reader, pc parser.Context)
 			}
 		}
 
-		for i, r := range line {
-			if unicode.IsSpace(rune(r)) {
+		end = len(line)
+		for i, r := range string(line) {
+			if unicode.IsSpace(r) {
 				end = i
 				break
 			}
@@ -187,6 +188,11 @@ func (t *tagParser) Parse(parent ast.Node, block text.Reader, pc parser.Context)
 		}
 
 		value = line[:end]
+	}
+
+	if len(value) == 0 {
+		// A tag needs a name, so a # on its own is just text.
+		return nil
 	}
 
 	seg = seg.WithStop(seg.Start + end + 1)

@@ -14,13 +14,18 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// pageSource is an interface that is used to open pages and journals. Used
-// to delegate operations to the graph but allow for transactions to be used
-// for opening pages.
+// pageSource is an interface that is used to open pages and journals, and to
+// find the blocks that relate to them. Used to delegate operations to the graph
+// but allow for transactions to be used for opening pages, so that pages
+// reached from other pages become part of the same transaction.
 type pageSource interface {
 	OpenJournal(date time.Time) (Page, error)
 
 	OpenPage(title string) (Page, error)
+
+	SearchPages(ctx context.Context, opts ...SearchOption) (SearchResults[PageResult], error)
+
+	SearchBlocks(ctx context.Context, opts ...SearchOption) (SearchResults[BlockResult], error)
 }
 
 // Graph represents a Logseq graph. In Logseq a graph is a directory that
@@ -32,11 +37,15 @@ type Graph struct {
 
 	config *utils.GraphConfig
 
-	journalNameFormat  string
-	journalTitleFormat string
+	journalNameFormat  *utils.DateFormat
+	journalTitleFormat *utils.DateFormat
 
 	index         indexing.Index
 	changeWatcher *fsnotify.Watcher
+
+	// changeHandlers tracks the goroutines that debounce and index file
+	// changes, so they can be waited for before the index is closed.
+	changeHandlers sync.WaitGroup
 
 	mu       sync.Mutex
 	watchers []*Watcher
@@ -66,9 +75,15 @@ func Open(ctx context.Context, directory string, opts ...Option) (*Graph, error)
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	// This library reads and writes Markdown, so a graph in another format
+	// can not be handled without silently mangling it.
+	if config.PreferredFormat != utils.PreferredFormatMarkdown {
+		return nil, fmt.Errorf("only Markdown graphs are supported, graph uses: %s", config.PreferredFormat)
+	}
+
 	// Parse the journal file name format.
-	journalNameFormat := utils.ConvertDateFormat(config.Journal.FileNameFormat)
-	journalTitleFormat := utils.ConvertDateFormat(config.Journal.PageTitleFormat)
+	journalNameFormat := utils.NewDateFormat(config.JournalFileNameFormat)
+	journalTitleFormat := utils.NewDateFormat(config.JournalPageTitleFormat)
 
 	var index indexing.Index
 	if options.index {
@@ -111,9 +126,22 @@ func (g *Graph) NewTransaction() *Transaction {
 	return newTransaction(g)
 }
 
-// OpenJournal returns a read-only version of the journal page for the given date.
+// journalDate normalizes a time into the date of a journal, which is midnight
+// on the local calendar day the time falls on. Journals cover a calendar day,
+// so this is how their dates are represented throughout the graph, letting a
+// date survive a trip through the index and back.
+func journalDate(t time.Time) time.Time {
+	t = t.Local()
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// Journal returns a read-only version of the journal page for the given date.
 func (g *Graph) OpenJournal(date time.Time) (Page, error) {
-	date = utils.TruncateDate(date)
+	return g.openJournal(date, g)
+}
+
+func (g *Graph) openJournal(date time.Time, source pageSource) (Page, error) {
+	date = journalDate(date)
 
 	path, err := g.JournalPath(date)
 	if err != nil {
@@ -125,28 +153,80 @@ func (g *Graph) OpenJournal(date time.Time) (Page, error) {
 		templatePath = filepath.Join(g.directory, g.config.DefaultTemplates.Journals)
 	}
 
-	title := date.Format(g.journalTitleFormat)
+	title := g.journalTitleFormat.Format(date)
 
-	return openOrCreatePage(path, PageTypeJournal, title, date, templatePath)
+	return openOrCreatePage(source, path, PageTypeJournal, title, date, templatePath, g.markdownParseOptions()...)
 }
 
-func (g *Graph) JournalPath(date time.Time) (string, error) {
-	filename := utils.TruncateDate(date).Format(g.journalNameFormat) + ".md"
+func (g *Graph) journalPath(date time.Time) (string, error) {
+	filename := g.journalNameFormat.Format(date) + ".md"
 	return filepath.Join(g.directory, g.config.JournalsDir, filename), nil
 }
 
 // Page returns a read-only version of a page for the given path.
 func (g *Graph) OpenPage(title string) (Page, error) {
+	return g.openPage(title, g)
+}
+
+func (g *Graph) openPage(title string, source pageSource) (Page, error) {
 	path, err := g.pagePath(title)
 	if err != nil {
 		return nil, err
 	}
 
-	return openOrCreatePage(path, PageTypeDedicated, title, time.Time{}, "")
+	page, err := openOrCreatePage(source, path, PageTypeDedicated, title, time.Time{}, "", g.markdownParseOptions()...)
+	if err != nil {
+		return nil, err
+	}
+
+	if !page.IsNew() || g.index == nil {
+		// The page has content of its own, or there is no index to look for
+		// aliases in.
+		return page, nil
+	}
+
+	// Nothing is stored under this title, so it may be an alias of another
+	// page. Opening the page it is an alias of keeps a second page for the same
+	// content from being created.
+	target, err := g.pageTitleForAlias(context.Background(), title)
+	if err != nil {
+		return nil, err
+	}
+
+	if target == "" {
+		return page, nil
+	}
+
+	path, err = g.pagePath(target)
+	if err != nil {
+		return nil, err
+	}
+
+	return openOrCreatePage(source, path, PageTypeDedicated, target, time.Time{}, "", g.markdownParseOptions()...)
+}
+
+// pageTitleForAlias finds the title of the page that has the given title as one
+// of its aliases, returning an empty string if no page does. If more than one
+// page uses the alias, which Logseq does not expect, one of them is picked.
+func (g *Graph) pageTitleForAlias(ctx context.Context, alias string) (string, error) {
+	results, err := g.index.SearchPages(ctx, indexing.HasAlias(alias), indexing.SearchOptions{
+		Size: 1,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to look up the page with the alias %s: %w", alias, err)
+	}
+
+	for _, page := range results.Results() {
+		if page.Type == indexing.PageTypeDedicated {
+			return page.Title, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (g *Graph) pagePath(title string) (string, error) {
-	path, err := utils.TitleToFilename(g.config.File.NameFormat, title)
+	path, err := utils.TitleToFilename(g.config.FileNameFormat, title)
 	if err != nil {
 		return "", err
 	}
@@ -154,47 +234,74 @@ func (g *Graph) pagePath(title string) (string, error) {
 	return filepath.Join(g.directory, g.config.PagesDir, path+".md"), nil
 }
 
-// OpenViaPath opens a page or journal via the path to the file, without knowing if it's a journal or page.
-func (g *Graph) OpenViaPath(path string) (Page, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path to %s: %w", path, err)
+// removePageFile removes the file a page is stored in. If the graph was opened
+// with WithRecycleDeletedPages the file is moved into the recycle directory
+// instead, so that it can be recovered.
+func (g *Graph) removePageFile(path string) error {
+	if !g.options.recycleDeletedPages {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("failed to remove page at %s: %w", path, err)
+		}
+
+		return nil
 	}
 
-	name := filepath.Base(abs)
+	recycleDir := filepath.Join(g.directory, "logseq", ".recycle")
+	if err := os.MkdirAll(recycleDir, 0755); err != nil {
+		return fmt.Errorf("failed to create recycle directory: %w", err)
+	}
+
+	target := filepath.Join(recycleDir, filepath.Base(path))
+	if err := os.Rename(path, target); err != nil {
+		return fmt.Errorf("failed to recycle page at %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// openViaPath opens the page stored at the given path. A nil page is returned
+// for files that are not part of the graph: files that are not Markdown, files
+// outside the pages and journals directories, such as in a subdirectory of
+// them, and journals whose name does not match the configured format.
+func (g *Graph) openViaPath(path string, source pageSource) (Page, error) {
+	name := filepath.Base(path)
 	if filepath.Ext(name) != ".md" {
-		return nil, fmt.Errorf("not a Markdown file")
+		return nil, nil
 	}
 
 	name = name[:len(name)-3]
-	dir := filepath.Dir(abs)
+	dir := filepath.Dir(path)
 
 	if dir == filepath.Join(g.directory, g.config.JournalsDir) {
-		date, err := time.Parse(g.journalNameFormat, name)
+		date, err := g.journalNameFormat.Parse(name)
 		if err != nil {
 			// Ignore files that don't match the journal name format
 			return nil, nil
 		}
 
-		title := date.Format(g.journalTitleFormat)
+		title := g.journalTitleFormat.Format(date)
 
-		return openOrCreatePage(abs, PageTypeJournal, title, date, "")
+		return openOrCreatePage(source, path, PageTypeJournal, title, date, "", g.markdownParseOptions()...)
 	} else if dir == filepath.Join(g.directory, g.config.PagesDir) {
-		title, err := utils.FilenameToTitle(g.config.File.NameFormat, name)
+		title, err := utils.FilenameToTitle(g.config.FileNameFormat, name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get title from filename: %w", err)
 		}
 
-		return openOrCreatePage(abs, PageTypeDedicated, title, time.Time{}, "")
+		return openOrCreatePage(source, path, PageTypeDedicated, title, time.Time{}, "", g.markdownParseOptions()...)
 	}
 
-	return nil, fmt.Errorf("%s is not a page or journal under the graph dir %s", abs, g.Directory())
+	return nil, nil
 }
 
 func (g *Graph) Close() error {
 	if g.changeWatcher != nil {
 		g.changeWatcher.Close()
 	}
+
+	// Changes are indexed as they come in, so wait for that to stop before
+	// closing the index out from under it.
+	g.changeHandlers.Wait()
 
 	if g.index != nil {
 		return g.index.Close()
@@ -234,17 +341,27 @@ func (g *Graph) createWalker(ctx context.Context, listener func(event OpenEvent)
 			return fmt.Errorf("failed to walk journals directory: %w", err)
 		}
 
+		subPath, err := filepath.Rel(g.directory, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		if g.config.IsHidden(subPath) {
+			// Files and directories hidden via the config are not part of the
+			// graph as far as Logseq is concerned.
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
 		if info.IsDir() {
 			return nil
 		}
 
 		if filepath.Ext(path) != ".md" {
 			return nil
-		}
-
-		subPath, err := filepath.Rel(g.directory, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 
 		lastModified, err := g.index.GetLastModified(ctx, subPath)
@@ -255,9 +372,14 @@ func (g *Graph) createWalker(ctx context.Context, listener func(event OpenEvent)
 			return nil
 		}
 
-		_, err = g.indexDocument(ctx, path)
+		page, err := g.indexDocument(ctx, path)
 		if err != nil {
 			return fmt.Errorf("failed to index document: %w", err)
+		}
+
+		if page == nil {
+			// The file is not part of the graph, so nothing was indexed.
+			return nil
 		}
 
 		if listener != nil {
@@ -270,7 +392,7 @@ func (g *Graph) createWalker(ctx context.Context, listener func(event OpenEvent)
 }
 
 func (g *Graph) indexDocument(ctx context.Context, docPath string) (Page, error) {
-	page, err := g.OpenViaPath(docPath)
+	page, err := g.openViaPath(docPath, g)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open page: %w", err)
 	}
@@ -287,7 +409,17 @@ func (g *Graph) indexDocument(ctx context.Context, docPath string) (Page, error)
 		Blocks:       page.Blocks(),
 		Title:        page.Title(),
 	}
+
 	doc.SubPath, _ = filepath.Rel(g.directory, docPath)
+
+	if impl, ok := page.(*pageImpl); ok {
+		// Look up the properties without creating them, as indexing should not
+		// modify the page.
+		doc.Blocks = impl.ContentBlocks()
+		doc.Properties = impl.findProperties()
+		doc.Aliases = impl.Aliases()
+	}
+
 	return page, g.index.IndexPage(ctx, doc)
 }
 
@@ -300,26 +432,32 @@ func (g *Graph) watchForChanges() {
 
 	g.changeWatcher = changeWatcher
 
-	err = g.changeWatcher.Add(filepath.Join(g.directory, g.config.JournalsDir))
+	err = changeWatcher.Add(filepath.Join(g.directory, g.config.JournalsDir))
 	if err != nil {
 		return
 	}
 
-	err = g.changeWatcher.Add(filepath.Join(g.directory, g.config.PagesDir))
+	err = changeWatcher.Add(filepath.Join(g.directory, g.config.PagesDir))
 	if err != nil {
 		return
 	}
 
 	changes := make(chan string)
-	changesDone := make(chan struct{})
+	// done is closed when the watcher has stopped, which lets debounce timers
+	// that fire around that point give up instead of sending on a channel that
+	// no longer has a receiver.
+	done := make(chan struct{})
 	changeTimers := make(map[string]*time.Timer)
 	var mu sync.Mutex
 
-	// Capture the watcher value to avoid a data race with the field being
-	// nilled in watcher.closer (which runs under g.mu).
+	g.changeHandlers.Add(2)
+
+	// Capture the watcher value to avoid racing with shutdown.
 	fsWatcher := changeWatcher
 
 	go func() {
+		defer g.changeHandlers.Done()
+
 	_outer:
 		for {
 			select {
@@ -337,6 +475,11 @@ func (g *Graph) watchForChanges() {
 					continue
 				}
 
+				if subPath, err := filepath.Rel(g.directory, event.Name); err == nil && g.config.IsHidden(subPath) {
+					// Hidden files are not part of the graph
+					continue
+				}
+
 				path := event.Name
 
 				// Logseq will save as you write, so debounce changes to files
@@ -351,11 +494,9 @@ func (g *Graph) watchForChanges() {
 					delete(changeTimers, path)
 					mu.Unlock()
 
-					// Use changesDone to avoid sending on a closed channel if
-					// the watcher shuts down while the timer is in flight.
 					select {
 					case changes <- path:
-					case <-changesDone:
+					case <-done:
 					}
 				})
 				mu.Unlock()
@@ -368,10 +509,10 @@ func (g *Graph) watchForChanges() {
 			}
 		}
 
-		// When the watcher is closed remove all of the current timers.
-		// Close changesDone first (without holding mu) so any in-flight
-		// timer callbacks can exit cleanly before we stop the timers.
-		close(changesDone)
+		// When the watcher is closed remove all of the current timers. Timers
+		// that already fired are released via done instead of being stopped.
+		close(done)
+
 		mu.Lock()
 		defer mu.Unlock()
 		for _, timer := range changeTimers {
@@ -380,14 +521,17 @@ func (g *Graph) watchForChanges() {
 	}()
 
 	go func() {
+		defer g.changeHandlers.Done()
+
 		ctx := context.Background()
 		for {
 			var path string
 			select {
 			case path = <-changes:
-			case <-changesDone:
+			case <-done:
 				return
 			}
+
 			// Figure out if the page still exists
 			exists := true
 			_, err := os.Stat(path)
@@ -419,7 +563,7 @@ func (g *Graph) watchForChanges() {
 				g.index.Sync()
 			} else if exists {
 				// No indexing, open the page directly
-				page, err = g.OpenViaPath(path)
+				page, err = g.openViaPath(path, g)
 				if err != nil {
 					// TODO: Log error
 				}
@@ -447,6 +591,7 @@ func (g *Graph) watchForChanges() {
 					select {
 					case watcher.changes <- event:
 					case <-watcher.done:
+					case <-done:
 					}
 				}
 			}
@@ -460,7 +605,7 @@ func (g *Graph) createPageDeletedEvent(path string) ChangeEvent {
 
 	dir := filepath.Dir(path)
 	if dir == filepath.Join(g.directory, g.config.JournalsDir) {
-		date, err := time.Parse(g.journalNameFormat, name)
+		date, err := g.journalNameFormat.Parse(name)
 		if err != nil {
 			// Ignore files that don't match the journal name format
 			return nil
@@ -469,10 +614,10 @@ func (g *Graph) createPageDeletedEvent(path string) ChangeEvent {
 		return &PageDeleted{
 			Type:  PageTypeJournal,
 			Date:  date,
-			Title: date.Format(g.journalTitleFormat),
+			Title: g.journalTitleFormat.Format(date),
 		}
 	} else if dir == filepath.Join(g.directory, g.config.PagesDir) {
-		title, err := utils.FilenameToTitle(g.config.File.NameFormat, name)
+		title, err := utils.FilenameToTitle(g.config.FileNameFormat, name)
 		if err != nil {
 			return nil
 		}
@@ -524,13 +669,14 @@ func (g *Graph) searchPages(ctx context.Context, opts []SearchOption, source pag
 
 	return newSearchResults(results, func(page *indexing.Page) PageResult {
 		if page.Type == indexing.PageTypeJournal {
+			date := journalDate(page.Date)
 			return &pageResultImpl{
 				docType: PageTypeJournal,
-				title:   page.Date.Format(g.journalTitleFormat),
-				date:    page.Date,
+				title:   g.journalTitleFormat.Format(date),
+				date:    date,
 
 				opener: func() (Page, error) {
-					return source.OpenJournal(page.Date)
+					return source.OpenJournal(date)
 				},
 			}
 		} else {
@@ -545,6 +691,41 @@ func (g *Graph) searchPages(ctx context.Context, opts []SearchOption, source pag
 			}
 		}
 	}), nil
+}
+
+// OpenBlock opens the block with the given id, which is the identifier that
+// block references such as `((id))` point at. The page the block belongs to is
+// returned as well, as the block is part of it.
+//
+// Blocks are found via the index, so this requires the graph to have been
+// opened with indexing enabled. If no block with the id is found, or the block
+// no longer exists on the page it was indexed on, ErrBlockNotFound is returned.
+func (g *Graph) OpenBlock(ctx context.Context, id string) (*content.Block, Page, error) {
+	return g.openBlock(ctx, id, g)
+}
+
+func (g *Graph) openBlock(ctx context.Context, id string, source pageSource) (*content.Block, Page, error) {
+	if g.index == nil {
+		return nil, nil, fmt.Errorf("indexing is not enabled")
+	}
+
+	if id == "" {
+		return nil, nil, ErrBlockNotFound
+	}
+
+	results, err := g.searchBlocks(ctx, []SearchOption{
+		WithQuery(BlockIDEquals(id)),
+		WithMaxHits(1),
+	}, source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if results.Size() == 0 {
+		return nil, nil, ErrBlockNotFound
+	}
+
+	return results.Results()[0].Open()
 }
 
 // SearchBlocks searches for blocks in the graph.
@@ -595,14 +776,14 @@ func (g *Graph) searchBlocks(ctx context.Context, opts []SearchOption, source pa
 		if dir == g.config.JournalsDir {
 			pageType = PageTypeJournal
 
-			pageDate, err = time.Parse(g.journalNameFormat, name)
+			pageDate, err = g.journalNameFormat.Parse(name)
 			if err != nil {
 				// TODO: This is an edge case where the format of journals has changed since indexing
 			}
 
-			pageTitle = pageDate.Format(g.journalTitleFormat)
+			pageTitle = g.journalTitleFormat.Format(pageDate)
 		} else {
-			pageTitle, err = utils.FilenameToTitle(g.config.File.NameFormat, name)
+			pageTitle, err = utils.FilenameToTitle(g.config.FileNameFormat, name)
 			if err != nil {
 				// TODO: This page is not in the expected format
 			}
@@ -646,8 +827,10 @@ func (g *Graph) Watch() *Watcher {
 			}
 		}
 
-		if len(g.watchers) == 0 && g.changeWatcher != nil && g.index != nil {
-			// Close the change watcher if there are no more watchers
+		if len(g.watchers) == 0 && g.index == nil && g.changeWatcher != nil {
+			// Nothing is watching and there is no index that needs to be kept
+			// up to date, so stop watching until something needs it again. With
+			// an index the graph keeps watching for the rest of its life.
 			g.changeWatcher.Close()
 			g.changeWatcher = nil
 		}
@@ -664,4 +847,25 @@ func (g *Graph) Watch() *Watcher {
 	}
 
 	return watcher
+}
+
+// JournalPath returns the path for the normalized journal day.
+func (g *Graph) JournalPath(date time.Time) (string, error) {
+	return g.journalPath(journalDate(date))
+}
+
+// OpenViaPath opens a page or journal via its file path.
+func (g *Graph) OpenViaPath(path string) (Page, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path to %s: %w", path, err)
+	}
+	page, err := g.openViaPath(abs, g)
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("%s is not a page or journal under the graph dir %s", abs, g.Directory())
+	}
+	return page, nil
 }
