@@ -1,17 +1,19 @@
-# [1.3.0](https://github.com/andreoliwa/logseq-go/compare/v1.2.0...v1.3.0) (2026-10-16)
+# Changelog
+
+## [1.3.0](https://github.com/andreoliwa/logseq-go/compare/v1.2.0...v1.3.0) (2026-10-16)
 
 ### Features
 
 - **content:** add leading time recognition and normalization ([6f026fe](https://github.com/andreoliwa/logseq-go/commit/6f026fee3095c1adc419441a759eb5e6f374bf1b))
 - **markdown:** expose raw outline source ranges ([9b8dc9a](https://github.com/andreoliwa/logseq-go/commit/9b8dc9a7f479d80a623d9511fa08857540fc38db))
 
-# [1.2.0](https://github.com/andreoliwa/logseq-go/compare/v1.1.0...v1.2.0) (2026-03-29)
+## [1.2.0](https://github.com/andreoliwa/logseq-go/compare/v1.1.0...v1.2.0) (2026-03-29)
 
 ### Features
 
 - String constants for all Task statuses ([3ca90e8](https://github.com/andreoliwa/logseq-go/commit/3ca90e87801f765e5643541d37c40902db1ecae1))
 
-# [1.1.0](https://github.com/andreoliwa/logseq-go/compare/v1.0.1...v1.1.0) (2026-03-29)
+## [1.1.0](https://github.com/andreoliwa/logseq-go/compare/v1.0.1...v1.1.0) (2026-03-29)
 
 ### Bug Fixes
 
@@ -33,7 +35,7 @@
 
 - parse CLOCK in local timezone ([7865e02](https://github.com/andreoliwa/logseq-go/commit/7865e0241db03f3ab6704e237f3ab342a73a1256))
 
-# [0.4.0](https://github.com/andreoliwa/logseq-go/compare/v0.3.1...v0.4.0) (2025-11-01)
+## [0.4.0](https://github.com/andreoliwa/logseq-go/compare/v0.3.1...v0.4.0) (2025-11-01)
 
 ### Features
 
@@ -45,7 +47,7 @@
 
 - preserve previous line when replacing nodes ([11425b6](https://github.com/andreoliwa/logseq-go/commit/11425b64a6b8968245ef7aa68324f814b5abcb74))
 
-# [0.3.0](https://github.com/andreoliwa/logseq-go/compare/v0.2.2...v0.3.0) (2025-11-01)
+## [0.3.0](https://github.com/andreoliwa/logseq-go/compare/v0.2.2...v0.3.0) (2025-11-01)
 
 ### Features
 
@@ -65,7 +67,7 @@
 - keep original line breaks in block quotes ([33ad53b](https://github.com/andreoliwa/logseq-go/commit/33ad53baa748f84d0f3b8fb1893ae57fd61b8857))
 - preserve tabs and spaces in code blocks ([53dbc29](https://github.com/andreoliwa/logseq-go/commit/53dbc290c1b8c2d88352d275b4426137e14195a1))
 
-# [0.2.0](https://github.com/andreoliwa/logseq-go/compare/v0.1.5...v0.2.0) (2025-07-28)
+## [0.2.0](https://github.com/andreoliwa/logseq-go/compare/v0.1.5...v0.2.0) (2025-07-28)
 
 ### Features
 
@@ -111,7 +113,7 @@
 
 - retract version v1.0.0 published by mistake ([3e06bdb](https://github.com/andreoliwa/logseq-go/commit/3e06bdb39d708612009cf913a2fbcdd691ce99ca))
 
-# [0.1.0](https://github.com/andreoliwa/logseq-go/compare/v0.0.0...v0.1.0) (2025-02-23)
+## [0.1.0](https://github.com/andreoliwa/logseq-go/compare/v0.0.0...v0.1.0) (2025-02-23)
 
 ### Bug Fixes
 

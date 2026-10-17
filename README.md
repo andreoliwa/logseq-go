@@ -73,6 +73,11 @@ out wrong after having been read and saved again.
 If this happens to you, please do open an issue with an example of content
 that is causing the issue.
 
+## Releases
+
+See [release procedures](docs/releases.md) for local validation, reviewed draft
+release PRs and publication approval.
+
 ## License
 
 This project is licensed under the MIT license, see [LICENSE](LICENSE).
