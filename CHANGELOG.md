@@ -3,6 +3,7 @@
 ## [1.4.0](https://github.com/andreoliwa/logseq-go/compare/v1.3.0...v1.4.0) (2026-10-17)
 
 ### Bug Fixes
+
 - Property blocks at start of page no longer break indexing ([9feed0b](https://github.com/andreoliwa/logseq-go/commit/9feed0ba5dad799ed8130908814aeba43c36462f))
 - Saving a page keeps the file's trailing newline ([d27ca1a](https://github.com/andreoliwa/logseq-go/commit/d27ca1a52856a1444fdddb9e4109ec4fe49cda47))
 - Pages that mix properties and prose without bullets keep their bare form ([900423e](https://github.com/andreoliwa/logseq-go/commit/900423e1d22f9dfebee4f9f504a302cfc2e04625))
@@ -30,9 +31,11 @@
 - **release:** Omit author labels from changelog entries ([0e5c63c](https://github.com/andreoliwa/logseq-go/commit/0e5c63c5c89ca0d004c655fa04cc771f6d6ed080))
 
 ### Documentation
+
 - **release:** Document direct master development ([08d8888](https://github.com/andreoliwa/logseq-go/commit/08d88883def055b374d39fb5e53d3ca0bebe0fc5))
 
 ### Features
+
 - **release:** Add event-scoped release notes ([1653c3a](https://github.com/andreoliwa/logseq-go/commit/1653c3a29898a12faca592abb18cf2d874bed9bf))
 - **release:** Adopt Release Please for reviewed releases ([29a0850](https://github.com/andreoliwa/logseq-go/commit/29a0850ca7e83c9ac48054f788bf24fe9c151310))
 - Model SCHEDULED and DEADLINE dates on tasks ([1e6f25d](https://github.com/andreoliwa/logseq-go/commit/1e6f25d4f5809ecb96a1c994bf398ce0c9906909))
