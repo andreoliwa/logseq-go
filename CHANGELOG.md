@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0](https://github.com/andreoliwa/logseq-go/compare/v1.3.0...v1.4.0) (2026-10-17)
+
+
+### Features
+
+* **logseq:** integrate upstream capabilities compatibly ([8b73b27](https://github.com/andreoliwa/logseq-go/commit/8b73b27b344b416a305a90ca1a53d53087bba49c))
+* **release:** add event-scoped release notes ([1653c3a](https://github.com/andreoliwa/logseq-go/commit/1653c3a29898a12faca592abb18cf2d874bed9bf))
+* **release:** adopt Release Please for reviewed releases ([29a0850](https://github.com/andreoliwa/logseq-go/commit/29a0850ca7e83c9ac48054f788bf24fe9c151310))
+
+
+### Bug Fixes
+
+* **release:** format compact entries with GitHub usernames ([97354e0](https://github.com/andreoliwa/logseq-go/commit/97354e0cbc09a9472c2d8fce7b148814b846d20e))
+* **release:** include upstream commits in proposed changelogs ([5c2df17](https://github.com/andreoliwa/logseq-go/commit/5c2df173e2c0aaa7f6fc08731d45c75533e71c40))
+* **release:** omit author labels from changelog entries ([0e5c63c](https://github.com/andreoliwa/logseq-go/commit/0e5c63c5c89ca0d004c655fa04cc771f6d6ed080))
+
 ## [1.3.0](https://github.com/andreoliwa/logseq-go/compare/v1.2.0...v1.3.0) (2026-10-16)
 
 ### Features
