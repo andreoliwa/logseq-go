@@ -19,6 +19,8 @@ when pages are modified. Please open issues if you find any bugs.
 > plus additional improvements.
 > You can download it from [Go Packages](https://pkg.go.dev/github.com/andreoliwa/logseq-go/v2) with `go get github.com/andreoliwa/logseq-go/v2`.
 
+See [Intentional Differences from Upstream](docs/upstream-differences.md) for parsing corrections and behavior differences maintained by this fork.
+
 ## Features
 
 - Read and write journals and pages
