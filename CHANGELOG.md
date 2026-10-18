@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.0.0](https://github.com/andreoliwa/logseq-go/compare/v1.4.0...v2.0.0) (2026-10-18)
+
+### Bug Fixes
+
+- **markdown:** Render canonical formatting without losing source style ([f651ea8](https://github.com/andreoliwa/logseq-go/commit/f651ea8b12b2971624af7d2912b80af9b9989293))
+- **transaction:** Preserve page endings and skip identical writes ([8b01523](https://github.com/andreoliwa/logseq-go/commit/8b01523052f2519a7f056f0fb0593433843bd7c8))
+- **markdown:** Align canonical block and header spacing ([8e3a870](https://github.com/andreoliwa/logseq-go/commit/8e3a8702ff38a021fe55d9dbf346ba518dd8524f))
+- **markdown:** Align canonical escaping with upstream ([2fdfd11](https://github.com/andreoliwa/logseq-go/commit/2fdfd11b16b40665a6840a5d6795af741dda6192))
+- **upstream:** Support Windows checks and test fixtures ([159d96e](https://github.com/andreoliwa/logseq-go/commit/159d96ea17c17401b468e3baa7f1e9c5d0d34fc0))
+
+### Documentation
+
+- **parsing:** Document intentional upstream differences ([2984857](https://github.com/andreoliwa/logseq-go/commit/298485718c1e5d0f93088b46be7b6bffad463a47))
+- **releases:** Explain v2 migration and publication checks ([84bff99](https://github.com/andreoliwa/logseq-go/commit/84bff990c714fb5606c97f3ea3f2bdfa5f31820e))
+
+### Features
+
+- **module:** Adopt the v2 import path ([0f3a340](https://github.com/andreoliwa/logseq-go/commit/0f3a340e826e7dc9b90fafd93804bd55c25ca867))
+- **content:** Align priority APIs and positional parsing ([0aaa5e3](https://github.com/andreoliwa/logseq-go/commit/0aaa5e37a10c8a9562656184788cb119590eb90d))
+- **content:** Separate status setters from task transitions ([f58d3cc](https://github.com/andreoliwa/logseq-go/commit/f58d3cc0426d0a6cc15a7c2cd755fd352436893c))
+- **markdown:** Make source preservation opt in ([c3e6e6a](https://github.com/andreoliwa/logseq-go/commit/c3e6e6a439afee3ba5822596d98eba673b7d506a))
+- **pages:** Expose the upstream page contract with pre-blocks ([67513ee](https://github.com/andreoliwa/logseq-go/commit/67513ee16afa807cbbc9976114f2cab3d4374633))
+- **markdown:** Default to typed logbooks with preserved source ([17a19e5](https://github.com/andreoliwa/logseq-go/commit/17a19e5b1ed5c37c48072c7effcdfcc69304942d))
+- **content:** Use regular properties with editable source styles ([0b659cd](https://github.com/andreoliwa/logseq-go/commit/0b659cdfe939c5461b7e4fbdeff50f727df23f88))
+- **upstream:** Report cached upstream changes ([1b03002](https://github.com/andreoliwa/logseq-go/commit/1b03002cd91c811ad31de83878e98d6fadb6a0ee))
+
 ## [1.4.0](https://github.com/andreoliwa/logseq-go/compare/v1.3.0...v1.4.0) (2026-10-17)
 
 ### Bug Fixes
