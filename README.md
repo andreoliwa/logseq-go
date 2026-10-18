@@ -231,13 +231,12 @@ Priorities use position-sensitive A/B/C syntax, including lowercase letters.
 Middle and unknown-letter markers remain literal text. Known CLOCK and state
 entries are typed by default; unsupported entries stay raw. Use
 `WithRawLogbooks()` for explicit all-raw parsing. Raw helpers such as
-`IsRunningClock` remain available alongside typed `clock.IsRunning()`. Opt into
-built-in list properties through `logseq.ParseBlockWithOptions`:
+`IsRunningClock` remain available alongside typed `clock.IsRunning()`. Built-in alias/aliases/tags lists use regular Property/reference nodes by
+default, retaining separators as editable text. Parser options remain available through `logseq.ParseBlockWithOptions`:
 
 ```go
 block, err := logseq.ParseBlockWithOptions(text,
-  logseq.WithTypedLogbooks(),
-  logseq.WithBuiltInPropertyLists(),
+  logseq.WithRawLogbooks(),
 )
 ```
 
@@ -259,3 +258,8 @@ Preserved page saves retain final-newline presence captured when the page was
 read: present stays present, absent stays absent. New preserved pages do not
 receive a forced newline. Default page saves end nonempty pages with a newline;
 standalone fragment serialization does not add a page terminator.
+
+Aliases are ordinary properties containing page-reference and separator nodes;
+`Alias` and `NewAlias` are removed. Use `content.NewProperty("alias", ...)`
+inside `content.NewProperties(...)`. Edit the current child nodes to change a
+value; preservation does not replay a stale whole-property string.

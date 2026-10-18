@@ -94,10 +94,9 @@ type parseOptions struct {
 	// page, even where it is written as a link.
 	ignoredPageReferences map[string]struct{}
 	typedLogbooks         bool
-	builtInPropertyLists  bool
 }
 
-// defaultParseOptions preserve the fork's existing node representations.
+// defaultParseOptions use typed logbooks and Logseq built-in reference lists.
 func defaultParseOptions() parseOptions {
 	options := parseOptions{
 		propertiesSeparatedByCommas: make(map[string]struct{}),
@@ -105,6 +104,9 @@ func defaultParseOptions() parseOptions {
 		typedLogbooks:               true,
 	}
 
+	for _, name := range builtInPropertiesSeparatedByCommas {
+		options.propertiesSeparatedByCommas[name] = struct{}{}
+	}
 	return options
 }
 
@@ -118,13 +120,12 @@ func WithRawLogbooks() ParseOption { return func(o *parseOptions) { o.typedLogbo
 // Deprecated: priorities are position-sensitive by default.
 func WithStrictPriorities() ParseOption { return func(o *parseOptions) {} }
 
-// WithBuiltInPropertyLists opts into implicit page references in Logseq lists.
+// WithBuiltInPropertyLists enables the default implicit page references in Logseq lists.
 func WithBuiltInPropertyLists() ParseOption {
 	return func(o *parseOptions) {
 		for _, name := range builtInPropertiesSeparatedByCommas {
 			o.propertiesSeparatedByCommas[name] = struct{}{}
 		}
-		o.builtInPropertyLists = true
 	}
 }
 
@@ -266,7 +267,7 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 	case *pageLink:
 		return content.NewPageLink(node.Page), nil
 	case *pageRefText:
-		return content.NewPageRefText(unescapeString(node.Segment.Value(src))), nil
+		return content.NewPageRefText(unescapeString(node.Segment.Value(src))).CaptureSource(string(node.Segment.Value(src))), nil
 	case *blockRef:
 		return content.NewBlockRef(node.ID), nil
 	case *strictPriority:
@@ -589,6 +590,9 @@ func convertTextBlock(src []byte, node ast.Node) (*content.Paragraph, error) {
 func convertText(src []byte, node *ast.Text) (*content.Text, error) {
 	value := unescapeString(node.Segment.Value(src))
 	text := content.NewText(value)
+	if isPropertyValue(node) {
+		text.CaptureSource(string(node.Segment.Value(src)))
+	}
 	if node.SoftLineBreak() {
 		text.SoftLineBreak = true
 	} else if node.HardLineBreak() {
@@ -613,6 +617,7 @@ func convertLink(src []byte, node *ast.Link) (*content.Link, error) {
 		return nil, err
 	}
 	link.Title = unescapeString(node.Title)
+	link.OriginalURLAngleBrackets = propertyLinkUsesAngleBrackets(src, node)
 	return link, nil
 }
 
@@ -665,9 +670,16 @@ func convertEmphasis(src []byte, node *ast.Emphasis) (content.HasChildren, error
 	var result content.HasChildren
 	if node.Level == 1 {
 		emphasisChar := detectEmphasisCharacter(src, node)
+		if isPropertyValue(node) {
+			emphasisChar = detectPropertyEmphasisCharacter(src, node)
+		}
 		result = content.NewEmphasisWithCharacter(emphasisChar)
 	} else if node.Level == 2 {
-		result = content.NewStrong()
+		strong := content.NewStrong()
+		if isPropertyValue(node) {
+			strong.Character = detectPropertyEmphasisCharacter(src, node)
+		}
+		result = strong
 	} else {
 		return nil, fmt.Errorf("Unsupported emphasis level: %d", node.Level)
 	}
@@ -725,6 +737,18 @@ func convertHighlight(src []byte, node *highlight) (*content.Highlight, error) {
 
 func convertCodeSpan(src []byte, node *ast.CodeSpan) (*content.CodeSpan, error) {
 	code := content.NewCodeSpan(string(node.Text(src)))
+	if first, ok := node.FirstChild().(*ast.Text); ok && isPropertyValue(node) {
+		start := first.Segment.Start
+		// Goldmark may trim one padding space from each side of the value.
+		if start > 0 && src[start-1] == ' ' {
+			start--
+		}
+		end := start
+		for start > 0 && src[start-1] == '`' {
+			start--
+		}
+		code.OriginalMarker = string(src[start:end])
+	}
 	return code, nil
 }
 
@@ -1082,38 +1106,13 @@ func convertProperties(src []byte, node *properties) (*content.Properties, error
 			return nil, errors.New("Invalid child in properties")
 		}
 
-		// Special handling for alias properties: split by commas and create Alias node
-		if p.Name == content.PropertyNameAlias && !p.Structured {
-			// Extract the full text value to preserve spacing (except trailing spaces at end of line)
-			fullValue := p.OriginalValue
-
-			// Split by commas and create Text nodes for each alias value
-			parts := strings.Split(fullValue, ",")
-			var aliasChildren []content.Node
-
-			for _, part := range parts {
-				trimmed := strings.TrimSpace(part)
-				if trimmed == "" {
-					continue
-				}
-				aliasChildren = append(aliasChildren, content.NewText(trimmed))
-			}
-
-			if len(aliasChildren) > 0 {
-				alias := content.NewAlias(aliasChildren...)
-				// Store the full original value with spacing preserved (except trailing)
-				alias.OriginalValue = fullValue
-				properties.AddChild(alias)
-			}
-		} else {
-			// Regular property handling
-			prop := content.NewProperty(p.Name).WithPageRefsIgnored(p.PageRefsIgnored)
-			err := convertChildren(src, p, prop)
-			if err != nil {
-				return nil, err
-			}
-			properties.AddChild(prop)
+		// All values use regular Property/reference nodes. Separators remain text,
+		// so preservation reflects edits without replaying an old whole value.
+		prop := content.NewProperty(p.Name).WithPageRefsIgnored(p.PageRefsIgnored)
+		if err := convertChildren(src, p, prop); err != nil {
+			return nil, err
 		}
+		properties.AddChild(prop)
 	}
 
 	updatePreviousLineKeepingBlank(node, properties)
@@ -1313,4 +1312,61 @@ func updatePreviousLineKeepingBlank(node ast.Node, target content.PreviousLineAw
 	} else {
 		target.SetPreviousLineType(content.PreviousLineTypeNonBlank)
 	}
+}
+
+// isPropertyValue limits source-style additions to the migrated property representation.
+func isPropertyValue(node ast.Node) bool {
+	for parent := node.Parent(); parent != nil; parent = parent.Parent() {
+		if _, ok := parent.(*property); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// detectPropertyEmphasisCharacter accounts for nested emphasis before the first text.
+func detectPropertyEmphasisCharacter(src []byte, node *ast.Emphasis) rune {
+	child := node.FirstChild()
+	prefix := 0
+	for {
+		nested, ok := child.(*ast.Emphasis)
+		if !ok {
+			break
+		}
+		prefix += nested.Level
+		child = nested.FirstChild()
+	}
+	if text, ok := child.(*ast.Text); ok && text.Segment.Start > prefix {
+		if src[text.Segment.Start-prefix-1] == '_' {
+			return '_'
+		}
+	}
+	return '*'
+}
+
+// propertyLinkUsesAngleBrackets reads the wrapper after the label's source range.
+func propertyLinkUsesAngleBrackets(src []byte, node *ast.Link) bool {
+	if !isPropertyValue(node) {
+		return false
+	}
+	stop := 0
+	_ = ast.Walk(node, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
+		if text, ok := child.(*ast.Text); entering && ok && text.Segment.Stop > stop {
+			stop = text.Segment.Stop
+		}
+		return ast.WalkContinue, nil
+	})
+	if stop == 0 {
+		return false
+	}
+	tail := string(src[stop:])
+	if end := strings.IndexByte(tail, '\n'); end >= 0 {
+		tail = tail[:end]
+	}
+	_, destination, ok := strings.Cut(tail, "](")
+	if !ok {
+		return false
+	}
+	destination = strings.TrimLeft(destination, " \t")
+	return strings.HasPrefix(destination, "<"+string(node.Destination)+">")
 }

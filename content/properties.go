@@ -9,11 +9,11 @@ type Properties struct {
 	hasBlankLineAfter bool
 }
 
-// NewProperties creates a new Properties node with the given Property or Alias children.
-func NewProperties(children ...Node) *Properties {
+// NewProperties creates a new Properties node with the given Property children.
+func NewProperties(children ...*Property) *Properties {
 	p := &Properties{}
 	p.self = p
-	p.childValidator = allowOnlyPropertiesOrAlias
+	p.childValidator = allowOnlyProperties
 	for _, child := range children {
 		p.AddChild(child)
 	}
@@ -133,35 +133,10 @@ func (p *Property) debug(p2 *debugPrinter) {
 	p2.EndType()
 }
 
-func allowOnlyPropertiesOrAlias(node Node) bool {
-	_, okProperty := node.(*Property)
-	_, okAlias := node.(*Alias)
-	return okProperty || okAlias
+func allowOnlyProperties(node Node) bool {
+	_, ok := node.(*Property)
+	return ok
 }
 
 // PropertyNameAlias is the name of the alias property.
 const PropertyNameAlias = "alias"
-
-// Alias is a property that represents an alias, which is an alternative name for a page.
-type Alias struct {
-	baseNodeWithChildren
-
-	// OriginalValue stores the original text with spacing for output preservation.
-	// This is used to maintain the exact formatting when writing back to markdown.
-	OriginalValue string
-}
-
-// NewAlias creates a new Alias node with the given values.
-func NewAlias(children ...Node) *Alias {
-	alias := &Alias{}
-	alias.self = alias
-	alias.childValidator = allowOnlyInlineNodes
-	alias.AddChildren(children...)
-	return alias
-}
-
-func (a *Alias) debug(p2 *debugPrinter) {
-	p2.StartType("Alias")
-	p2.Children(a)
-	p2.EndType()
-}

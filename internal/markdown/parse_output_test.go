@@ -322,3 +322,143 @@ var _ = Describe("Preserved typed StateChange", func() {
 
 	})
 })
+
+var _ = Describe("Editable property source", func() {
+	It("keeps alias separators without replaying old values", func() {
+		source := "alias::   First,  Second"
+		root, err := markdown.ParseString(source)
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal(source))
+		property := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		reference := property.Children().Find(content.IsOfType[*content.PageRefText]()).(*content.PageRefText)
+		reference.To = "Changed"
+		actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias::   Changed,  Second"))
+	})
+})
+
+var _ = Describe("Preserved alias reference lexemes", func() {
+	It("keeps escaped references while reflecting direct edits", func() {
+		for _, source := range []string{`alias:: \*literal\*, Other`, `alias:: foo &amp; bar, Other`} {
+			root, err := markdown.ParseString(source)
+			Expect(err).NotTo(HaveOccurred())
+			actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal(source))
+			prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+			refs := prop.Children().Filter(content.IsOfType[*content.PageRefText]())
+			refs[len(refs)-1].(*content.PageRefText).To = "Changed"
+			actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal(strings.TrimSuffix(source, "Other") + "Changed"))
+			refs[0].(*content.PageRefText).To = "First"
+			actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal("alias:: First, Changed"))
+		}
+	})
+})
+
+var _ = Describe("Preserved alias strong delimiters", func() {
+	It("keeps underscore delimiters around current children", func() {
+		root, err := markdown.ParseString("alias:: __bold__, Other")
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: __bold__, Other"))
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		strong := prop.FirstChild().(*content.Strong)
+		strong.FirstChild().(*content.Text).Value = "Changed"
+		actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: __Changed__, Other"))
+		actual, err = markdown.AsString(root, markdown.WithStrictOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: **Changed**, Other"))
+	})
+})
+
+var _ = Describe("Preserved alias code delimiters", func() {
+	It("keeps valid source fences without concealing changed values", func() {
+		for _, source := range []string{"alias:: ``code``, Other", "alias:: ``  code  ``, Other"} {
+			root, err := markdown.ParseString(source)
+			Expect(err).NotTo(HaveOccurred())
+			actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal(source))
+			prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+			code := prop.FirstChild().(*content.CodeSpan)
+			code.Value = "Changed"
+			actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal("alias:: ``Changed``, Other"))
+			code.Value = "three```ticks"
+			actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal("alias:: ````three```ticks````, Other"))
+			code.Value = "Changed"
+			actual, err = markdown.AsString(root, markdown.WithStrictOutput())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal("alias:: `Changed`, Other"))
+		}
+	})
+})
+
+var _ = Describe("Preserved alias nested text", func() {
+	It("retains escaped inline children and renders changed text", func() {
+		source := `alias:: *\*literal\**`
+		root, err := markdown.ParseString(source)
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal(source))
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		emphasis := prop.FirstChild().(*content.Emphasis)
+		emphasis.SetChildren(content.NewText("Changed"))
+		actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: *Changed*"))
+	})
+})
+
+var _ = Describe("Preserved nested alias strong", func() {
+	It("retains the outer delimiter around nested emphasis", func() {
+		root, err := markdown.ParseString("alias:: __*nested*__")
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: __*nested*__"))
+	})
+})
+
+var _ = Describe("Preserved triple alias emphasis", func() {
+	It("keeps both source delimiters in triple emphasis", func() {
+		root, err := markdown.ParseString("alias:: ___nested___")
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: ___nested___"))
+	})
+})
+
+var _ = Describe("Preserved alias link destination", func() {
+	It("retains angle wrappers while exposing edited destinations", func() {
+		source := "alias:: [name](<https://example.com>), [other](https://other.example)"
+		root, err := markdown.ParseString(source)
+		Expect(err).NotTo(HaveOccurred())
+		actual, err := markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal(source))
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		prop.FirstChild().(*content.Link).URL = "https://changed.example"
+		actual, err = markdown.AsString(root, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: [name](<https://changed.example>), [other](https://other.example)"))
+		actual, err = markdown.AsString(root, markdown.WithStrictOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(actual).To(Equal("alias:: [name](https://changed.example), [other](https://other.example)"))
+	})
+})

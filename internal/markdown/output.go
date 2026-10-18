@@ -323,6 +323,9 @@ func (w *Output) Write(n content.Node) error {
 	case *content.PageLink:
 		return w.writePageLink(node)
 	case *content.PageRefText:
+		if source, unchanged := node.PreservedSource(); !w.opts.strict && unchanged {
+			return w.writeRaw(source)
+		}
 		// The title is the whole of the reference, written the same way text is.
 		if w.opts.strict {
 			return w.write(node.To, EscapeStrictMarkdown)
@@ -542,7 +545,12 @@ func (w *Output) writeText(node *content.Text) error {
 		escapeFunc = EscapeLinkText
 	}
 
-	err := w.write(node.Value, escapeFunc)
+	var err error
+	if source, unchanged := node.PreservedSource(); !w.opts.strict && unchanged {
+		err = w.writeRaw(source)
+	} else {
+		err = w.write(node.Value, escapeFunc)
+	}
 	if err != nil {
 		return err
 	}
@@ -605,7 +613,11 @@ func (w *Output) writeStrong(node *content.Strong) error {
 		}
 	}
 
-	err := w.writeRaw("**")
+	marker := "**"
+	if !w.opts.strict && node.Character == '_' {
+		marker = "__"
+	}
+	err := w.writeRaw(marker)
 	if err != nil {
 		return err
 	}
@@ -615,7 +627,7 @@ func (w *Output) writeStrong(node *content.Strong) error {
 		return err
 	}
 
-	err = w.writeRaw("**")
+	err = w.writeRaw(marker)
 	if err != nil {
 		return err
 	}
@@ -759,6 +771,9 @@ func (w *Output) writeCodeSpan(node *content.CodeSpan) error {
 		}
 	}
 	marker := strings.Repeat("`", longestRun+1)
+	if !w.opts.strict && len(node.OriginalMarker) > longestRun && strings.Trim(node.OriginalMarker, "`") == "" {
+		marker = node.OriginalMarker
+	}
 
 	// A code span that starts or ends with a backtick needs to be padded with
 	// spaces to keep the backtick apart from the marker. The same padding is
@@ -830,7 +845,11 @@ func (w *Output) writeLink(node *content.Link) error {
 	if w.opts.strict {
 		escapeURL = EscapeLinkURL
 	}
-	err = w.write(node.URL, escapeURL)
+	url := node.URL
+	if !w.opts.strict && node.OriginalURLAngleBrackets && !strings.ContainsAny(url, "<>\n") {
+		url = "<" + url + ">"
+	}
+	err = w.write(url, escapeURL)
 	if err != nil {
 		return err
 	}
@@ -2076,7 +2095,7 @@ func (w *Output) writeProperties(node *content.Properties) error {
 	}
 
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		// Handle both Property and Alias nodes
+		// Property values carry their own editable separators.
 		if property, ok := child.(*content.Property); ok {
 			err := w.writeRaw(property.Name)
 			if err != nil {
@@ -2091,36 +2110,6 @@ func (w *Output) writeProperties(node *content.Properties) error {
 			err = w.writeChildren(property)
 			if err != nil {
 				return err
-			}
-		} else if alias, ok := child.(*content.Alias); ok {
-			err := w.writeRaw(content.PropertyNameAlias + ":: ")
-			if err != nil {
-				return err
-			}
-
-			// Use OriginalValue if available to preserve exact spacing
-			if alias.OriginalValue != "" {
-				err = w.writeRaw(alias.OriginalValue)
-				if err != nil {
-					return err
-				}
-			} else {
-				// Fallback: write all alias values separated by commas
-				isFirst := true
-				for aliasChild := alias.FirstChild(); aliasChild != nil; aliasChild = aliasChild.NextSibling() {
-					if !isFirst {
-						err = w.writeRaw(",")
-						if err != nil {
-							return err
-						}
-					}
-					isFirst = false
-
-					err = w.Write(aliasChild)
-					if err != nil {
-						return err
-					}
-				}
 			}
 		} else {
 			return fmt.Errorf("unsupported properties child: %T", child)

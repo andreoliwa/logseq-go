@@ -1938,7 +1938,7 @@ var _ = Describe("Parsing", func() {
 				Expect(block).To(tests.EqualNode(
 					content.NewBlock(
 						content.NewProperties(
-							content.NewAlias(content.NewText("another name for the page")),
+							content.NewProperty("alias", content.NewPageRefText("another name for the page")),
 						),
 					),
 				))
@@ -1951,10 +1951,13 @@ var _ = Describe("Parsing", func() {
 				Expect(block).To(tests.EqualNode(
 					content.NewBlock(
 						content.NewProperties(
-							content.NewAlias(
-								content.NewText("one thing"),
-								content.NewText("another   thing"),
-								content.NewText("yet another thing"),
+							content.NewProperty("alias",
+								content.NewText("  "),
+								content.NewPageRefText("one thing"),
+								content.NewText(" ,  "),
+								content.NewPageRefText("another   thing"),
+								content.NewText("   , "),
+								content.NewPageRefText("yet another thing"),
 							),
 						),
 					),
@@ -2602,5 +2605,88 @@ var _ = Describe("Typed logbook defaults", func() {
 		Expect(entries[0]).To(BeAssignableToTypeOf(&content.LogbookEntryClock{}))
 		Expect(entries[1]).To(BeAssignableToTypeOf(&content.LogbookEntryStateChange{}))
 		Expect(entries[2]).To(BeAssignableToTypeOf(&content.LogbookEntryRaw{}))
+	})
+})
+
+var _ = Describe("Default property lists", func() {
+	DescribeTable("uses regular properties with page references", func(name string) {
+		root, err := markdown.ParseString(name + ":: First,  Second")
+		Expect(err).NotTo(HaveOccurred())
+		properties := root.FirstChild().(*content.Properties)
+		property := properties.FirstChild().(*content.Property)
+		Expect(property.Name).To(Equal(name))
+		refs := property.Children().Filter(content.IsOfType[*content.PageRefText]())
+		Expect(refs).To(HaveLen(2))
+	}, Entry("alias", "alias"), Entry("aliases", "aliases"), Entry("tags", "tags"))
+})
+
+var _ = Describe("Reference source capture", func() {
+	It("retains escaped spelling on ordinary property references", func() {
+		root, err := markdown.ParseString(`alias:: \*literal\*`)
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		ref := prop.FirstChild().(*content.PageRefText)
+		Expect(ref.To).To(Equal("*literal*"))
+		source, valid := ref.PreservedSource()
+		Expect(source).To(Equal(`\*literal\*`))
+		Expect(valid).To(BeTrue())
+	})
+})
+
+var _ = Describe("Property strong source", func() {
+	It("captures underscore delimiters on regular alias children", func() {
+		root, err := markdown.ParseString("alias:: __bold__")
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		Expect(prop.FirstChild().(*content.Strong).Character).To(Equal('_'))
+	})
+})
+
+var _ = Describe("Property code source", func() {
+	It("captures a multi-backtick delimiter on an ordinary alias child", func() {
+		root, err := markdown.ParseString("alias:: ``code``")
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		Expect(prop.FirstChild().(*content.CodeSpan).OriginalMarker).To(Equal("``"))
+	})
+})
+
+var _ = Describe("Property nested text source", func() {
+	It("captures escaped spelling below an emphasis node", func() {
+		root, err := markdown.ParseString(`alias:: *\*literal\**`)
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		emphasis := prop.FirstChild().(*content.Emphasis)
+		text := emphasis.FirstChild().(*content.Text)
+		source, valid := text.PreservedSource()
+		Expect(source).NotTo(BeEmpty())
+		Expect(valid).To(BeTrue())
+	})
+})
+
+var _ = Describe("Nested property strong source", func() {
+	It("looks past nested emphasis to find the outer delimiter", func() {
+		root, err := markdown.ParseString("alias:: __*nested*__")
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		Expect(prop.FirstChild().(*content.Strong).Character).To(Equal('_'))
+	})
+})
+
+var _ = Describe("Triple property emphasis source", func() {
+	It("captures the outer underscore around strong children", func() {
+		root, err := markdown.ParseString("alias:: ___nested___")
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		Expect(prop.FirstChild().(*content.Emphasis).Character).To(Equal('_'))
+	})
+})
+
+var _ = Describe("Property link wrapper source", func() {
+	It("records angle wrappers on regular alias links", func() {
+		root, err := markdown.ParseString("alias:: [name](<https://example.com>)")
+		Expect(err).NotTo(HaveOccurred())
+		prop := root.FirstChild().(*content.Properties).FirstChild().(*content.Property)
+		Expect(prop.FirstChild().(*content.Link).OriginalURLAngleBrackets).To(BeTrue())
 	})
 })

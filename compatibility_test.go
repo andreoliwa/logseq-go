@@ -72,3 +72,5 @@ func (*externalPage) NamespaceChildren(context.Context, ...logseq.SearchOption) 
 func (*externalPage) LinkedReferences(context.Context, ...logseq.SearchOption) (logseq.SearchResults[logseq.BlockResult], error) {
 	return nil, nil
 }
+
+var _ func(...*content.Property) *content.Properties = content.NewProperties

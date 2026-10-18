@@ -5,6 +5,7 @@ import (
 )
 
 type Text struct {
+	sourceText, sourceValue string
 	baseNode
 
 	// Value is the text of this node.
@@ -87,6 +88,8 @@ func (t *RawText) debug(p *debugPrinter) {
 var _ InlineNode = (*RawText)(nil)
 
 type CodeSpan struct {
+	// OriginalMarker retains the backtick delimiter of parsed property values.
+	OriginalMarker string
 	baseNode
 
 	// Value is the text of this node.
@@ -147,6 +150,8 @@ func (e *Emphasis) debug(p *debugPrinter) {
 var _ InlineNode = (*Emphasis)(nil)
 
 type Strong struct {
+	// Character retains the delimiter of parsed property values. Zero means a star.
+	Character rune
 	baseNodeWithChildren
 }
 
@@ -336,3 +341,14 @@ func (t *ThematicBreak) debug(p *debugPrinter) {
 func (t *ThematicBreak) isBlock() {}
 
 var _ BlockNode = (*ThematicBreak)(nil)
+
+// CaptureSource records a text value's source spelling without its line break.
+func (t *Text) CaptureSource(source string) *Text {
+	t.sourceText, t.sourceValue = source, t.Value
+	return t
+}
+
+// PreservedSource returns captured spelling only while the value matches.
+func (t *Text) PreservedSource() (string, bool) {
+	return t.sourceText, t.sourceText != "" && t.Value == t.sourceValue
+}

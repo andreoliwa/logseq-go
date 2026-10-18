@@ -225,16 +225,6 @@ func (p *pageImpl) Aliases() []string {
 		return nil
 	}
 
-	for _, child := range properties.Children() {
-		if alias, ok := child.(*content.Alias); ok {
-			parsed, err := markdown.ParseString(alias.OriginalValue)
-			if err == nil {
-				if paragraph, ok := parsed.FirstChild().(*content.Paragraph); ok {
-					return propertyTitles(content.NewProperty("alias", paragraph.Children()...))
-				}
-			}
-		}
-	}
 	return propertyTitles(properties.GetAsNode("alias"))
 }
 

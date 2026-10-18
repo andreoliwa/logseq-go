@@ -9,6 +9,8 @@ type HasLinkURL interface {
 }
 
 type Link struct {
+	// OriginalURLAngleBrackets records destination wrappers in parsed property values.
+	OriginalURLAngleBrackets bool
 	baseNodeWithChildren
 
 	// URL is the target of the link.
@@ -159,6 +161,7 @@ var _ PageRef = (*PageLink)(nil)
 // of pages this way, so `tags:: Example, Other` refers to two pages even
 // though neither is written as a link.
 type PageRefText struct {
+	sourceText, sourceTarget string
 	baseNode
 
 	// To is the target of the reference.
@@ -263,3 +266,14 @@ func (b *BlockRef) debug(p *debugPrinter) {
 func (l *BlockRef) isInline() {}
 
 var _ InlineNode = (*BlockRef)(nil)
+
+// CaptureSource records a reference's spelling and current target.
+func (l *PageRefText) CaptureSource(source string) *PageRefText {
+	l.sourceText, l.sourceTarget = source, l.To
+	return l
+}
+
+// PreservedSource returns the original spelling only while its target matches.
+func (l *PageRefText) PreservedSource() (string, bool) {
+	return l.sourceText, l.sourceText != "" && l.To == l.sourceTarget
+}

@@ -31,9 +31,7 @@ var propertyKind = ast.NewNodeKind("Property")
 
 type property struct {
 	ast.BaseBlock
-	Name          string
-	OriginalValue string
-	Structured    bool
+	Name string
 
 	// PageRefsIgnored is whether the pages named in the value are read as text
 	// instead of as references, as set by `:ignored-page-references-keywords`.
@@ -125,7 +123,6 @@ func applyOptionsToProperties(node *properties, reader text.Reader, options *par
 			continue
 		}
 
-		property.Structured = options.builtInPropertyLists
 		if options.ignoresPageReferences(property.Name) {
 			// The value of this property is only text, so it is left as it was
 			// parsed and marked as not pointing at any page.
@@ -367,16 +364,6 @@ func (t *propertiesASTTransformer) transformTextBlockOrParagraph(node ast.Node, 
 
 				currentProperty = &property{}
 				currentProperty.Name = potentialName[matches[2]:matches[3]]
-				valueOffset := textNode.Segment.Start + matches[1]
-				source := reader.Source()
-				if valueOffset < len(source) && source[valueOffset] == ' ' {
-					valueOffset++
-				}
-				valueEnd := valueOffset
-				for valueEnd < len(source) && source[valueEnd] != '\n' {
-					valueEnd++
-				}
-				currentProperty.OriginalValue = strings.TrimRight(string(source[valueOffset:valueEnd]), " \t\r")
 
 				currentProperties.AppendChild(currentProperties, currentProperty)
 
