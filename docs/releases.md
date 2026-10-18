@@ -29,7 +29,9 @@ The initial manifest records the existing v1.3.0 release. The bootstrap commit i
 that release's full SHA. Do not choose the next version manually or replace fork
 tags with upstream tags. Conventional Commits follow strict SemVer: compatible
 features bump minor, fixes bump patch, and incompatible public API changes require
-major. Finish compatible integration on v1 before a separate reviewed v2 change.
+major. The last published v1 baseline is v1.4.0. The root module now uses
+`github.com/andreoliwa/logseq-go/v2`; its breaking commits drive the next major
+proposal. Do not edit the manifest to select that version.
 
 ## Activation requires approval
 
@@ -37,8 +39,8 @@ Work sequentially in the existing checkout on local `master`; local commits
 there are authorized. Do not create source PRs, feature branches or parallel
 feature worktrees. The user performs every push of `master`; the assistant never
 pushes and asks the user when a push is needed. Changes to secrets/settings,
-manual remote workflow runs and publication require separate approval. The upstream merge waits until release automation is activated and a
-draft release PR with its required checks is verified.
+manual remote workflow runs and publication require separate approval. The original upstream merge required activated release automation and a verified
+draft release PR with its required checks.
 
 With approval, install the workflow on `master`. The `Release` environment must
 provide the repository-scoped `GH_TOKEN` secret or an approved GitHub App token
@@ -63,7 +65,7 @@ or previous release is wrong instead of guessing a latest release. Full fork
 history and tags are required; fetch upstream source with `--no-tags`.
 
 Git-cliff edits only that release's body, not CHANGELOG.md or tags. Commit links
-point to commits retained in this fork and author names remain visible. Issue
+point to commits retained in this fork; notes omit author labels. Issue
 numbers stay escaped text, and automatic issue/PR release comments are deliberately
 omitted because imported numbers may refer to unrelated fork items.
 
@@ -87,3 +89,24 @@ Please, move an existing release tag or publish a version just to test rollback.
 ## Historical v1 retraction
 
 The v1 module retracts v1.0.0: semantic-release published it by default when Git tags were missing while the package was still experimental. The /v2 module cannot retract versions from the v1 module path; its published v1 metadata and tags remain unchanged.
+
+## Migrating consumers to v2
+
+Use the `/v2` root import and the actual published version selected by Release
+Please. Priority is the enum and TaskPriority its node; Page directly exposes
+navigation and includes pre-blocks. WithStatus only sets status; TransitionTo
+performs clock/property side effects. Known logbooks and built-in reference
+lists use typed nodes by default.
+
+Select WithPreserveOutput when opening graphs that must retain source style,
+or WithPreservedMarkdown for standalone serialization. Preserved page saves
+retain final-newline presence and the existing separator after page pre-blocks.
+Regular property nodes retain supported source escapes and emphasis/code/link
+styles without hiding edits to their values or children. WithRawLogbooks
+explicitly selects all-raw entries. See the README for API examples.
+
+Before publication, local consumer checks may use an external temporary modfile
+with a sibling replacement. That is not released-module proof. After the
+maintainer publishes the reviewed major release, verify a clean consumer with
+`GOWORK=off`, no temporary modfile and no local replacement. Keep historical v1
+entries and tags unchanged; do not publish another version just to test setup.
