@@ -1,11 +1,12 @@
 """Report changes since the reviewed upstream snapshot without changing the checkout."""
 
-import fcntl
+import errno
 import json
 import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -51,17 +52,48 @@ def notice(state, reviewed):
         print("Upstream differs from the reviewed snapshot: " + UPSTREAM + "/compare/" + reviewed + "..." + observed)
 
 
+def acquire_lock(lock):
+    # Both kernels release the lock on close or process exit; a stale file is harmless.
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        if error.errno in (errno.EACCES, errno.EAGAIN):
+            return False
+        raise
+    return True
+
+
 def lookup():
     # -q disables curlrc, avoiding hidden credentials or interactive host settings.
+    # Windows Popen does not use env PATH when resolving an executable.
+    curl = shutil.which("curl")
+    if not curl:
+        raise ValueError("curl is required")
     process = subprocess.Popen(
-        ["curl", "-q", "--fail", "--silent", "--show-error", "--connect-timeout", "2", "--max-time", "4", REF],
+        [curl, "-q", "--fail", "--silent", "--show-error", "--connect-timeout", "2", "--max-time", "4", REF],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
     )
     try:
         stdout, stderr = process.communicate(timeout=6)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
+        if os.name == "nt":
+            taskkill = Path(os.environ["SYSTEMROOT"]) / "System32" / "taskkill.exe"
+            try:
+                subprocess.run([str(taskkill), "/F", "/T", "/PID", str(process.pid)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1, check=True)
+            except (OSError, subprocess.SubprocessError):
+                process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+        process.communicate(timeout=1)
         raise ValueError("lookup timed out") from None
     if process.returncode:
         # Do not echo external stderr, which can contain host-specific data.
@@ -90,11 +122,7 @@ def main():
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "upstream.json"
         with (directory / "upstream.lock").open("a") as lock:
-            try:
-                # Kernel-owned locks are released on exit, including crashes. A
-                # stale lock file is harmless and cannot suppress future checks.
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
+            if not acquire_lock(lock):
                 notice(read_state(path), reviewed)
                 return 0
             state = read_state(path)

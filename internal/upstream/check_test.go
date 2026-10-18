@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,25 @@ import (
 )
 
 func TestUpstream(t *testing.T) { RegisterFailHandler(Fail); RunSpecs(t, "Upstream notice") }
+
+func mustLookPath(name string) string {
+	path, err := exec.LookPath(name)
+	Expect(err).NotTo(HaveOccurred())
+	return path
+}
+
+var curlStub string
+
+var _ = BeforeSuite(func() {
+	directory := GinkgoT().TempDir()
+	curlStub = filepath.Join(directory, "curl")
+	if runtime.GOOS == "windows" {
+		curlStub += ".exe"
+	}
+	command := exec.Command("go", "build", "-o", curlStub, "./testdata/curl")
+	output, err := command.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(output))
+})
 
 var _ = Describe("Cached upstream notices", func() {
 	var directory, script, counter, cache, reviewed string
@@ -46,11 +66,15 @@ var _ = Describe("Cached upstream notices", func() {
 		Expect(os.WriteFile(filepath.Join(scripts, "upstream-reviewed.sha"), reviewedBytes, 0644)).To(Succeed())
 		bin := filepath.Join(directory, "bin")
 		Expect(os.MkdirAll(bin, 0755)).To(Succeed())
-		stub := "#!/bin/sh\nprintf 'lookup\\n' >> \"$COUNTER\"\nif [ -n \"$CHECK_SLEEP\" ]; then sleep \"$CHECK_SLEEP\"; fi\nif [ -n \"$CHECK_FAIL\" ]; then exit 1; fi\nprintf '%s' \"$RESPONSE\"\n"
-		Expect(os.WriteFile(filepath.Join(bin, "curl"), []byte(stub), 0755)).To(Succeed())
+		stub, err := os.ReadFile(curlStub)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(filepath.Join(bin, filepath.Base(curlStub)), stub, 0755)).To(Succeed())
 		counter = filepath.Join(directory, "calls")
 		cache = filepath.Join(directory, "cache", "logseq-go", "upstream.json")
-		environment = []string{"PATH=" + bin + ":/usr/bin:/bin", "HOME=" + directory, "XDG_CACHE_HOME=" + filepath.Join(directory, "cache"), "TEST_NOW=1000", "COUNTER=" + counter, `RESPONSE={"object":{"sha":"` + reviewed + `"}}`}
+		environment = []string{"PATH=" + bin, "HOME=" + directory, "XDG_CACHE_HOME=" + filepath.Join(directory, "cache"), "TEST_NOW=1000", "COUNTER=" + counter, `RESPONSE={"object":{"sha":"` + reviewed + `"}}`}
+		if runtime.GOOS == "windows" {
+			environment = append(environment, "SYSTEMROOT="+os.Getenv("SYSTEMROOT"), "OS=Windows_NT")
+		}
 	})
 	It("is quiet at the reviewed tip and throttles repeated checks", func() { Expect(invoke()).To(BeEmpty()); Expect(invoke()).To(BeEmpty()); Expect(calls()).To(Equal(1)) })
 	It("retains a pending notice from cache without another lookup", func() {
@@ -108,6 +132,21 @@ var _ = Describe("Cached upstream notices", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.TrimSpace(string(data))).To(Equal(reviewed))
 	})
+	It("skips platform-specific locking setup under CI", func() {
+		command := exec.Command("python3", "-c", `import builtins,runpy,sys
+original = builtins.__import__
+def no_lock_modules(name, *args, **kwargs):
+    if name == "fcntl":
+        raise ImportError("fcntl unavailable")
+    return original(name, *args, **kwargs)
+builtins.__import__ = no_lock_modules
+runpy.run_path(sys.argv[1], run_name="__main__")`, script)
+		command.Env = append(environment, "CI=1")
+		output, err := command.CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), string(output))
+		Expect(string(output)).To(BeEmpty())
+		Expect(calls()).To(BeZero())
+	})
 	It("skips all network work under CI", func() {
 		environment = append(environment, "CI=1")
 		Expect(invoke()).To(BeEmpty())
@@ -133,11 +172,12 @@ var _ = Describe("Cached upstream notices", func() {
 	It("works through make with a minimal environment", func() {
 		python, err := exec.LookPath("python3")
 		Expect(err).NotTo(HaveOccurred())
-		environment = append(environment, "CI=1", "PATH="+filepath.Dir(python)+":/usr/bin:/bin")
+		environment = append(environment, "CI=1", "PATH="+filepath.Dir(python)+string(os.PathListSeparator)+filepath.Dir(mustLookPath("make")))
 		command := exec.Command("make", "-s", "-C", "../..", "check-upstream")
 		command.Env = environment
 		output, err := command.CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), string(output))
+		Expect(string(output)).To(BeEmpty())
 		Expect(calls()).To(BeZero())
 	})
 	It("warns without failing when curl is missing", func() {
@@ -155,10 +195,11 @@ var _ = Describe("Cached upstream notices", func() {
 		}
 		python, err := exec.LookPath("python3")
 		Expect(err).NotTo(HaveOccurred())
-		command := exec.Command("make", "-s", "-C", checkout, "check-upstream")
-		command.Env = append(environment, "CI=1", "PATH="+filepath.Dir(python)+":/usr/bin:/bin")
+		command := exec.Command("make", "-s", "-C", checkout, "check-upstream", "OS=Windows_NT")
+		command.Env = append(environment, "CI=1", "PATH="+filepath.Dir(python)+string(os.PathListSeparator)+filepath.Dir(mustLookPath("make")))
 		output, err := command.CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), string(output))
+		Expect(string(output)).To(BeEmpty())
 		Expect(calls()).To(BeZero())
 	})
 
