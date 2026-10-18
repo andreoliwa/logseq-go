@@ -654,7 +654,9 @@ type LogbookEntryClock struct {
 
 	// End is when the clock was stopped. The zero time means the clock is
 	// still running, which Logseq writes without the end and the duration.
-	End time.Time
+	End                    time.Time
+	sourceText             string
+	sourceStart, sourceEnd time.Time
 }
 
 // NewLogbookEntryClock creates a clock entry that ran between two times. Pass
@@ -718,7 +720,10 @@ type LogbookEntryStateChange struct {
 	To TaskStatus
 
 	// Time is when the change happened.
-	Time time.Time
+	Time                 time.Time
+	sourceText           string
+	sourceFrom, sourceTo TaskStatus
+	sourceTime           time.Time
 }
 
 func NewLogbookEntryStateChange(from TaskStatus, to TaskStatus, at time.Time) *LogbookEntryStateChange {
@@ -989,4 +994,30 @@ func executeTransitionToTodo(fromStatus TaskStatus, block *Block, now time.Time)
 		// Unknown category - no action
 		return nil
 	}
+}
+
+// CaptureSource records spelling and semantic fields independently of output policy.
+func (t *LogbookEntryClock) CaptureSource(source string) *LogbookEntryClock {
+	t.sourceText = source
+	t.sourceStart, t.sourceEnd = t.Start, t.End
+	return t
+}
+
+// PreservedSource returns captured text and whether current fields still match it.
+// The text remains available after edits so writers can retain its time precision.
+func (t *LogbookEntryClock) PreservedSource() (string, bool) {
+	return t.sourceText, t.sourceText != "" && t.Start == t.sourceStart && t.End == t.sourceEnd
+}
+
+// CaptureSource records spelling and semantic fields independently of output policy.
+func (t *LogbookEntryStateChange) CaptureSource(source string) *LogbookEntryStateChange {
+	t.sourceText = source
+	t.sourceFrom, t.sourceTo, t.sourceTime = t.From, t.To, t.Time
+	return t
+}
+
+// PreservedSource returns captured text and whether current fields still match it.
+// The text remains available after edits so writers can retain its time precision.
+func (t *LogbookEntryStateChange) PreservedSource() (string, bool) {
+	return t.sourceText, t.sourceText != "" && t.From == t.sourceFrom && t.To == t.sourceTo && t.Time == t.sourceTime
 }

@@ -36,8 +36,8 @@ var _ = Describe("Existing fork consumers", func() {
 		Expect(priority.Priority).To(Equal(content.PriorityMedium))
 		Expect(content.NewPriorityFromString("b").Priority).To(Equal(content.PriorityMedium))
 	})
-	It("keeps CLOCK logbook entries raw by default", func() {
-		block, err := logseq.ParseBlock("TODO Task\n:LOGBOOK:\nCLOCK: [2026-10-17 Sat 09:00]\n:END:")
+	It("keeps CLOCK logbook entries raw when requested", func() {
+		block, err := logseq.ParseBlockWithOptions("TODO Task\n:LOGBOOK:\nCLOCK: [2026-10-17 Sat 09:00]\n:END:", logseq.WithRawLogbooks())
 		Expect(err).NotTo(HaveOccurred())
 		var found bool
 		for _, child := range block.Children() {

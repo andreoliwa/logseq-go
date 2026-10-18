@@ -36,11 +36,11 @@ func parseLogbookEntry(value string) content.LogbookEntry {
 	line := strings.TrimRight(value, " \t\r")
 
 	if entry := parseLogbookClock(line); entry != nil {
-		return entry
+		return entry.CaptureSource(value)
 	}
 
 	if entry := parseLogbookStateChange(line); entry != nil {
-		return entry
+		return entry.CaptureSource(value)
 	}
 
 	return content.NewLogbookEntryRaw(value)
@@ -57,7 +57,7 @@ func parseLogbookTime(value string) (time.Time, error) {
 	return time.ParseInLocation(logbookTimeLayoutWithoutSeconds, value, time.Local)
 }
 
-func parseLogbookClock(line string) content.LogbookEntry {
+func parseLogbookClock(line string) *content.LogbookEntryClock {
 	matches := clockRegexp.FindStringSubmatch(line)
 	if matches == nil {
 		return nil
@@ -84,7 +84,7 @@ func parseLogbookClock(line string) content.LogbookEntry {
 	return content.NewLogbookEntryClock(start, end)
 }
 
-func parseLogbookStateChange(line string) content.LogbookEntry {
+func parseLogbookStateChange(line string) *content.LogbookEntryStateChange {
 	matches := stateChangeRegexp.FindStringSubmatch(line)
 	if matches == nil {
 		return nil

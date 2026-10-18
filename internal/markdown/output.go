@@ -2330,6 +2330,15 @@ func (w *Output) logbookLayout() string {
 // times so it always matches them.
 func (w *Output) logbookClock(node *content.LogbookEntryClock) (string, error) {
 	layout := w.logbookLayout()
+	if !w.opts.strict {
+		source, unchanged := node.PreservedSource()
+		if unchanged {
+			return source, nil
+		}
+		if source != "" {
+			layout = sourceLogbookLayout(source)
+		}
+	}
 
 	value := "CLOCK: [" + node.Start.Format(layout) + "]"
 	if node.IsRunning() {
@@ -2342,7 +2351,7 @@ func (w *Output) logbookClock(node *content.LogbookEntryClock) (string, error) {
 
 	value += "--[" + node.End.Format(layout) + "] =>  "
 
-	if !w.opts.logbookWithSeconds {
+	if layout == logbookTimeLayoutWithoutSeconds {
 		// The duration is measured between the times as they are written, so
 		// that it adds up for whoever reads the entry.
 		duration := node.End.Truncate(time.Minute).Sub(node.Start.Truncate(time.Minute))
@@ -2363,6 +2372,16 @@ func (w *Output) logbookClock(node *content.LogbookEntryClock) (string, error) {
 }
 
 func (w *Output) logbookStateChange(node *content.LogbookEntryStateChange) (string, error) {
+	layout := w.logbookLayout()
+	if !w.opts.strict {
+		source, unchanged := node.PreservedSource()
+		if unchanged {
+			return source, nil
+		}
+		if source != "" {
+			layout = sourceLogbookLayout(source)
+		}
+	}
 	to := node.To.String()
 	if to == "" {
 		return "", fmt.Errorf("unsupported task status: %d", node.To)
@@ -2379,7 +2398,7 @@ func (w *Output) logbookStateChange(node *content.LogbookEntryStateChange) (stri
 		value += ` from "` + from + `"`
 	}
 
-	return value + " [" + node.Time.Format(w.logbookLayout()) + "]", nil
+	return value + " [" + node.Time.Format(layout) + "]", nil
 }
 
 func (w *Output) writeLogbook(node *content.Logbook) error {
@@ -2430,4 +2449,14 @@ func (w *Output) writeLogbook(node *content.Logbook) error {
 
 	w.endBlock()
 	return nil
+}
+
+// sourceLogbookLayout retains minute/second precision when a typed entry changes.
+func sourceLogbookLayout(source string) string {
+	start := strings.IndexByte(source, '[')
+	end := strings.IndexByte(source, ']')
+	if start >= 0 && end > start && strings.Count(source[start:end], ":") == 2 {
+		return logbookTimeLayout
+	}
+	return logbookTimeLayoutWithoutSeconds
 }

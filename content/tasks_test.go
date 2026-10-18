@@ -470,3 +470,27 @@ var _ = Describe("Setter and transition APIs", func() {
 		Expect(block.Properties().Get("completed")).To(BeEmpty())
 	})
 })
+
+var _ = Describe("LogbookEntryClock source capture", func() {
+	It("invalidates source on semantic field edits", func() {
+		node := content.NewLogbookEntryClock(time.Now(), time.Time{}).CaptureSource("original")
+		source, unchanged := node.PreservedSource()
+		Expect(source).To(Equal("original"))
+		Expect(unchanged).To(BeTrue())
+		node.WithEnd(node.Start.Add(time.Minute))
+		_, unchanged = node.PreservedSource()
+		Expect(unchanged).To(BeFalse())
+	})
+})
+
+var _ = Describe("LogbookEntryStateChange source capture", func() {
+	It("invalidates source on semantic field edits", func() {
+		node := content.NewLogbookEntryStateChange(content.TaskStatusTodo, content.TaskStatusDone, time.Now()).CaptureSource("original")
+		source, unchanged := node.PreservedSource()
+		Expect(source).To(Equal("original"))
+		Expect(unchanged).To(BeTrue())
+		node.WithTo(content.TaskStatusTodo)
+		_, unchanged = node.PreservedSource()
+		Expect(unchanged).To(BeFalse())
+	})
+})

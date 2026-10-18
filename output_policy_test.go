@@ -97,3 +97,34 @@ var _ = Describe("Output preservation policy", func() {
 		Expect(counts).To(Equal(map[string]int{`\_literal\_`: 10, "_literal_": 10}))
 	})
 })
+
+var _ = Describe("Graph parser policy forwarding", func() {
+	It("loads typed entries by default and raw entries only on request", func() {
+		for _, raw := range []bool{false, true} {
+			root := GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(root, "logseq"), 0755)).To(Succeed())
+			Expect(os.MkdirAll(filepath.Join(root, "pages"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(root, "logseq/config.edn"), []byte("{}"), 0644)).To(Succeed())
+			source := "- TODO work\n  :LOGBOOK:\n  CLOCK: [2023-06-26 Mon 09:00]\n  :END:\n"
+			Expect(os.WriteFile(filepath.Join(root, "pages/Example.md"), []byte(source), 0644)).To(Succeed())
+			options := []logseq.Option{logseq.WithPreserveOutput()}
+			if raw {
+				options = append(options, logseq.WithParseOptions(logseq.WithRawLogbooks()))
+			}
+			graph, err := logseq.Open(context.Background(), root, options...)
+			Expect(err).NotTo(HaveOccurred())
+			page, err := graph.OpenPage("Example")
+			Expect(err).NotTo(HaveOccurred())
+			entry := page.Blocks()[0].Children().FindDeep(content.IsOfType[*content.Logbook]()).(*content.Logbook).FirstChild()
+			if raw {
+				Expect(entry).To(BeAssignableToTypeOf(&content.LogbookEntryRaw{}))
+			} else {
+				Expect(entry).To(BeAssignableToTypeOf(&content.LogbookEntryClock{}))
+			}
+			parsed, err := graph.ParseBlock(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 09:00]\n:END:")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(parsed.FirstChild().(*content.Logbook).FirstChild()).To(BeAssignableToTypeOf(entry))
+			Expect(graph.Close()).To(Succeed())
+		}
+	})
+})

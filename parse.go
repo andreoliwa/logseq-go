@@ -95,6 +95,9 @@ type ParseOption = markdown.ParseOption
 // WithTypedLogbooks opts into structured CLOCK and state-change nodes.
 func WithTypedLogbooks() ParseOption { return markdown.WithTypedLogbooks() }
 
+// WithRawLogbooks keeps every logbook entry as raw text rather than a typed node.
+func WithRawLogbooks() ParseOption { return markdown.WithRawLogbooks() }
+
 // WithStrictPriorities is retained for callers.
 // Deprecated: priorities are position-sensitive by default.
 func WithStrictPriorities() ParseOption { return markdown.WithStrictPriorities() }

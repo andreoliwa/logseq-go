@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"strings"
+	"time"
 )
 
 func parseAndOutput(input string) string {
@@ -273,6 +274,51 @@ var _ = Describe("Positional priority round trips", func() {
 			Expect(markdown.NewWriter(&result, options...).Write(block)).To(Succeed())
 			Expect(result.String()).To(Equal("TODO [#B] task"))
 		}
+
+	})
+})
+
+var _ = Describe("Preserved typed Clock", func() {
+	It("keeps untouched source but renders direct field edits", func() {
+		source := "CLOCK: [2023-06-26 Mon 09:00]--[2023-06-26 Mon 09:02] =>  07:99"
+		block, err := markdown.ParseString(":LOGBOOK:\n"+source+"\n:END:", markdown.WithTypedLogbooks())
+		Expect(err).NotTo(HaveOccurred())
+		book := block.FirstChild().(*content.Logbook)
+		node := book.FirstChild().(*content.LogbookEntryClock)
+		canonical, err := markdown.AsString(block)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(canonical).To(Equal(":LOGBOOK:\n" + "CLOCK: [2023-06-26 Mon 09:00:00]--[2023-06-26 Mon 09:02:00] =>  00:02:00" + "\n:END:"))
+		preserved, err := markdown.AsString(block, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preserved).To(Equal(":LOGBOOK:\n" + source + "\n:END:"))
+		node.End = node.End.Add(time.Minute)
+		preserved, err = markdown.AsString(block, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preserved).To(ContainSubstring("09:03] =>  00:03"))
+		Expect(preserved).NotTo(ContainSubstring("07:99"))
+
+	})
+})
+
+var _ = Describe("Preserved typed StateChange", func() {
+	It("keeps untouched source but renders direct field edits", func() {
+		source := "* State \"DONE\"  from \"TODO\" [2023-06-26 Mon 09:00]"
+		block, err := markdown.ParseString(":LOGBOOK:\n"+source+"\n:END:", markdown.WithTypedLogbooks())
+		Expect(err).NotTo(HaveOccurred())
+		book := block.FirstChild().(*content.Logbook)
+		node := book.FirstChild().(*content.LogbookEntryStateChange)
+		canonical, err := markdown.AsString(block)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(canonical).To(Equal(":LOGBOOK:\n" + "* State \"DONE\" from \"TODO\" [2023-06-26 Mon 09:00:00]" + "\n:END:"))
+		preserved, err := markdown.AsString(block, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preserved).To(Equal(":LOGBOOK:\n" + source + "\n:END:"))
+		node.Time = node.Time.Add(time.Minute)
+		node.To = content.TaskStatusTodo
+		preserved, err = markdown.AsString(block, markdown.WithPreservedOutput())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preserved).To(ContainSubstring(`State "TODO"`))
+		Expect(preserved).To(ContainSubstring("09:01]"))
 
 	})
 })

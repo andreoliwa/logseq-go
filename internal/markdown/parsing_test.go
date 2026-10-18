@@ -2318,8 +2318,8 @@ var _ = Describe("Parsing", func() {
 			})
 		})
 
-		It("Can parse LOGBOOK", func() {
-			block, err := markdown.ParseString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]--[2023-06-26 Mon 17:25:56] =>  00:00:00\nCLOCK: [2023-06-26 Mon 17:25:57]--[2023-06-26 Mon 17:25:58] =>  00:00:01\n:END:")
+		It("can parse LOGBOOK in explicit raw mode", func() {
+			block, err := markdown.ParseString("TODO Task\n:LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25:56]--[2023-06-26 Mon 17:25:56] =>  00:00:00\nCLOCK: [2023-06-26 Mon 17:25:57]--[2023-06-26 Mon 17:25:58] =>  00:00:01\n:END:", markdown.WithRawLogbooks())
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(block).To(tests.EqualNode(content.NewBlock(
@@ -2591,4 +2591,16 @@ var _ = Describe("Positional priority parsing", func() {
 		Entry("unknown is literal", "[#D] task", content.PriorityNone),
 		Entry("link label", "[#A](https://example.com)", content.PriorityNone),
 	)
+})
+
+var _ = Describe("Typed logbook defaults", func() {
+	It("models known entries and falls back to raw for unsupported lines", func() {
+		root, err := markdown.ParseString(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 09:00]\n* State \"DONE\" from \"TODO\" [2023-06-26 Mon 09:01]\nunknown entry\n:END:")
+		Expect(err).NotTo(HaveOccurred())
+		entries := root.FirstChild().(*content.Logbook).Children()
+		Expect(entries).To(HaveLen(3))
+		Expect(entries[0]).To(BeAssignableToTypeOf(&content.LogbookEntryClock{}))
+		Expect(entries[1]).To(BeAssignableToTypeOf(&content.LogbookEntryStateChange{}))
+		Expect(entries[2]).To(BeAssignableToTypeOf(&content.LogbookEntryRaw{}))
+	})
 })

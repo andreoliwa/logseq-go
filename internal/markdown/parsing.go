@@ -102,6 +102,7 @@ func defaultParseOptions() parseOptions {
 	options := parseOptions{
 		propertiesSeparatedByCommas: make(map[string]struct{}),
 		ignoredPageReferences:       make(map[string]struct{}),
+		typedLogbooks:               true,
 	}
 
 	return options
@@ -109,6 +110,9 @@ func defaultParseOptions() parseOptions {
 
 // WithTypedLogbooks opts into structured CLOCK and state-change nodes.
 func WithTypedLogbooks() ParseOption { return func(o *parseOptions) { o.typedLogbooks = true } }
+
+// WithRawLogbooks keeps every logbook entry as raw text rather than a typed node.
+func WithRawLogbooks() ParseOption { return func(o *parseOptions) { o.typedLogbooks = false } }
 
 // WithStrictPriorities is retained for callers; positional syntax is always enabled.
 // Deprecated: priorities are position-sensitive by default.

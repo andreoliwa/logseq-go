@@ -228,9 +228,11 @@ pre-block when needed. `PrependBlock` inserts after an existing pre-block.
 The former PageNavigation, ContentBlocks and PageProperties APIs are removed.
 
 Priorities use position-sensitive A/B/C syntax, including lowercase letters.
-Middle and unknown-letter markers remain literal text. Default parsing still
-keeps raw logbooks and the existing alias representation. Opt into structured
-logbook entries or built-in list properties through `logseq.ParseBlockWithOptions`:
+Middle and unknown-letter markers remain literal text. Known CLOCK and state
+entries are typed by default; unsupported entries stay raw. Use
+`WithRawLogbooks()` for explicit all-raw parsing. Raw helpers such as
+`IsRunningClock` remain available alongside typed `clock.IsRunning()`. Opt into
+built-in list properties through `logseq.ParseBlockWithOptions`:
 
 ```go
 block, err := logseq.ParseBlockWithOptions(text,
