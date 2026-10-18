@@ -1,9 +1,11 @@
 package markdown_test
 
 import (
+	"github.com/andreoliwa/logseq-go/v2/content"
 	"github.com/andreoliwa/logseq-go/v2/internal/markdown"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"strings"
 )
 
 func parseAndOutput(input string) string {
@@ -252,5 +254,25 @@ var _ = Describe("Source parsing then outputting", func() {
 		output, err := markdown.AsString(block)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(Equal(parseAndOutput(source)))
+	})
+})
+
+var _ = Describe("Positional priority round trips", func() {
+	It("keeps lowercase in both output modes and honors edited values", func() {
+		block, err := markdown.ParseString("TODO [#a] task")
+		Expect(err).NotTo(HaveOccurred())
+		for _, options := range [][]markdown.Option{nil, {markdown.WithStrictOutput()}} {
+			var result strings.Builder
+			Expect(markdown.NewWriter(&result, options...).Write(block)).To(Succeed())
+			Expect(result.String()).To(Equal("TODO [#a] task"))
+		}
+		priority := block.FirstChild().(*content.Paragraph).Children()[1].(*content.TaskPriority)
+		priority.Priority = content.PriorityB
+		for _, options := range [][]markdown.Option{nil, {markdown.WithStrictOutput()}} {
+			var result strings.Builder
+			Expect(markdown.NewWriter(&result, options...).Write(block)).To(Succeed())
+			Expect(result.String()).To(Equal("TODO [#B] task"))
+		}
+
 	})
 })

@@ -253,16 +253,7 @@ func (t *TaskMarker) debug(p *debugPrinter) {
 
 func (t *TaskMarker) isInline() {}
 
-// TaskPriority is the fork's existing priority node under an additive name.
-type TaskPriority = Priority
-
-const (
-	PriorityA = PriorityHigh
-	PriorityB = PriorityMedium
-	PriorityC = PriorityLow
-)
-
-func NewTaskPriority(priority PriorityValue) *TaskPriority { return NewPriority(priority) }
+func NewTaskPriority(priority Priority) *TaskPriority { return NewPriority(priority) }
 
 // TaskDateType is the type of a date that is attached to a task.
 type TaskDateType int

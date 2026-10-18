@@ -2421,10 +2421,7 @@ var _ = Describe("Parsing", func() {
 			Expect(block).To(tests.EqualNode(content.NewBlock(
 				content.NewParagraph(
 					content.NewPriority(content.PriorityHigh),
-					content.NewText("Only the first priority should be parsed ["),
-					content.NewHashtag("B]"),
-					content.NewText(" ["),
-					content.NewHashtag("C]"),
+					content.NewText("Only the first priority should be parsed [#B] [#C]"),
 				),
 			)))
 		})
@@ -2437,14 +2434,12 @@ var _ = Describe("Parsing", func() {
 			Expect(block).To(tests.EqualNode(content.NewBlock(
 				content.NewBlock(
 					content.NewParagraph(
-						content.NewPriority(content.PriorityNone),
-						content.NewText("Invalid letter"),
+						content.NewText("[#D] Invalid letter"),
 					),
 				),
 				content.NewBlock(
 					content.NewParagraph(
-						content.NewPriority(content.PriorityNone),
-						content.NewText("Invalid letter without space"),
+						content.NewText("[#E]Invalid letter without space"),
 					),
 				),
 			)))
@@ -2458,7 +2453,7 @@ var _ = Describe("Parsing", func() {
 			Expect(block).To(tests.EqualNode(content.NewBlock(
 				content.NewBlock(
 					content.NewParagraph(
-						content.NewPriority(content.PriorityNone),
+						content.NewPriority(content.PriorityA),
 						content.NewText("Valid letter but no space"),
 					),
 				),
@@ -2567,4 +2562,33 @@ var _ = Describe("Typed clock compatibility", func() {
 		clock := block.Children().FindDeep(content.IsOfType[*content.LogbookEntryClock]()).(*content.LogbookEntryClock)
 		Expect(clock.IsRunning()).To(BeFalse())
 	})
+})
+
+var _ = Describe("Positional priority parsing", func() {
+	DescribeTable("recognizes only leading known letters", func(input string, expected content.Priority) {
+		block, err := markdown.ParseString(input)
+		Expect(err).NotTo(HaveOccurred())
+		paragraph := block.FirstChild().(*content.Paragraph)
+		count := 0
+		for _, node := range paragraph.Children() {
+			if priority, ok := node.(*content.TaskPriority); ok {
+				count++
+				Expect(priority.Priority).To(Equal(expected))
+			}
+			_, tag := node.(*content.Hashtag)
+			Expect(tag).To(BeFalse())
+		}
+		if expected == content.PriorityNone {
+			Expect(count).To(BeZero())
+		} else {
+			Expect(count).To(Equal(1))
+		}
+	},
+		Entry("after a task marker", "TODO [#a] task", content.PriorityA),
+		Entry("leading lowercase", "[#b] task", content.PriorityB),
+		Entry("leading uppercase", "[#C] task", content.PriorityC),
+		Entry("middle is literal", "Discuss [#A] tomorrow", content.PriorityNone),
+		Entry("unknown is literal", "[#D] task", content.PriorityNone),
+		Entry("link label", "[#A](https://example.com)", content.PriorityNone),
+	)
 })

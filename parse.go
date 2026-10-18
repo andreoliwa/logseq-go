@@ -95,7 +95,8 @@ type ParseOption = markdown.ParseOption
 // WithTypedLogbooks opts into structured CLOCK and state-change nodes.
 func WithTypedLogbooks() ParseOption { return markdown.WithTypedLogbooks() }
 
-// WithStrictPriorities opts into position-sensitive Logseq priority syntax.
+// WithStrictPriorities is retained for callers.
+// Deprecated: priorities are position-sensitive by default.
 func WithStrictPriorities() ParseOption { return markdown.WithStrictPriorities() }
 
 // WithBuiltInPropertyLists opts into implicit page references in built-in lists.

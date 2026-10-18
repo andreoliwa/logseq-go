@@ -1856,3 +1856,38 @@ var _ = Describe("Canonical writeCodeBlock", func() {
 		Expect(preserved.String()).To(Equal("- ```\n  first\n  \n  second\n  ```"))
 	})
 })
+
+var _ = Describe("Edited writePriority", func() {
+	It("does not replay original text after direct value edits", func() {
+		node := content.NewPriority(content.PriorityA)
+		node.OriginalText = "[#a] "
+		for _, value := range []content.Priority{content.PriorityB, content.PriorityC, content.PriorityNone} {
+			node.Priority = value
+			var actual strings.Builder
+			Expect(markdown.NewWriter(&actual).Write(node)).To(Succeed())
+			expected := "[#B] "
+			if value == content.PriorityC {
+				expected = "[#C] "
+			}
+			if value == content.PriorityNone {
+				expected = ""
+			}
+			Expect(actual.String()).To(Equal(expected))
+		}
+	})
+})
+
+var _ = Describe("Canonical writeTaskPriority", func() {
+	It("keeps the parsed letter case without replaying edits", func() {
+		node := content.NewPriority(content.PriorityA)
+		node.OriginalText = "[#a] "
+		var canonical, preserved, edited strings.Builder
+		Expect(markdown.NewWriter(&canonical, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(canonical.String()).To(Equal("[#a]"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[#a] "))
+		node.Priority = content.PriorityB
+		Expect(markdown.NewWriter(&edited, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(edited.String()).To(Equal("[#B]"))
+	})
+})

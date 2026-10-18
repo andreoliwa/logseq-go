@@ -2,30 +2,37 @@ package content
 
 import "strings"
 
-type PriorityValue int
+type Priority int
 
 const (
-	PriorityNone PriorityValue = iota
-	PriorityHigh
-	PriorityMedium
-	PriorityLow
+	PriorityNone Priority = iota
+	PriorityA
+	PriorityB
+	PriorityC
 )
 
-type Priority struct {
+// Readable aliases for the upstream letter priorities.
+const (
+	PriorityHigh   = PriorityA
+	PriorityMedium = PriorityB
+	PriorityLow    = PriorityC
+)
+
+type TaskPriority struct {
 	baseNode
 
-	Priority     PriorityValue
+	Priority     Priority
 	OriginalText string // Preserves original text for invalid priorities
 }
 
-func NewPriority(priority PriorityValue) *Priority {
-	return &Priority{
+func NewPriority(priority Priority) *TaskPriority {
+	return &TaskPriority{
 		Priority: priority,
 	}
 }
 
 // ParsePriorityFromLetter parses a priority from a letter (A, B, C or a, b, c).
-func ParsePriorityFromLetter(letter string) PriorityValue {
+func ParsePriorityFromLetter(letter string) Priority {
 	switch strings.ToUpper(letter) {
 	case "A":
 		return PriorityHigh
@@ -39,16 +46,16 @@ func ParsePriorityFromLetter(letter string) PriorityValue {
 }
 
 // NewPriorityFromString creates a new priority from a letter string.
-func NewPriorityFromString(letter string) *Priority {
-	return &Priority{
+func NewPriorityFromString(letter string) *TaskPriority {
+	return &TaskPriority{
 		Priority: ParsePriorityFromLetter(letter),
 	}
 }
 
 // WithPriority sets the priority value.
-func (p *Priority) WithPriority(priority PriorityValue) *Priority {
+func (p *TaskPriority) WithPriority(priority Priority) *TaskPriority {
 	p.Priority = priority
 	return p
 }
 
-func (p *Priority) isInline() {}
+func (p *TaskPriority) isInline() {}

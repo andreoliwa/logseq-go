@@ -221,20 +221,20 @@ interface. Use a type assertion to access aliases, namespaces, linked references
 (page-level properties before the first bullet). `Page.Blocks()` still returns
 bullet blocks, and `Page.Properties()` still accesses the first bullet's properties.
 
-Default parsing keeps raw logbook entries and the existing priority and alias
-representations. Opt into structured logbook entries, stricter priority parsing
-or built-in list properties through `logseq.ParseBlockWithOptions`:
+Priorities use position-sensitive A/B/C syntax, including lowercase letters.
+Middle and unknown-letter markers remain literal text. Default parsing still
+keeps raw logbooks and the existing alias representation. Opt into structured
+logbook entries or built-in list properties through `logseq.ParseBlockWithOptions`:
 
 ```go
 block, err := logseq.ParseBlockWithOptions(text,
   logseq.WithTypedLogbooks(),
-  logseq.WithStrictPriorities(),
   logseq.WithBuiltInPropertyLists(),
 )
 ```
 
-`content.TaskPriority` aliases the existing `content.Priority` node;
-`content.PriorityA`, `PriorityB` and `PriorityC` name the existing priority values.
+`content.Priority` is the enum and `content.TaskPriority` is its node.
+`PriorityHigh`, `PriorityMedium` and `PriorityLow` alias A, B and C.
 
 Pass the same parser options to `logseq.WithParseOptions(...)` when opening a
 graph to enable those representations for loaded pages, indexing and graph

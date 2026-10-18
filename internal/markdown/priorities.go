@@ -14,7 +14,8 @@ var strictPriorityKind = ast.NewNodeKind("Priority")
 
 type strictPriority struct {
 	ast.BaseInline
-	Priority content.PriorityValue
+	Priority     content.Priority
+	OriginalText string
 }
 
 func (*strictPriority) Kind() ast.NodeKind {
@@ -63,6 +64,10 @@ func (t *strictPriorityParser) Parse(parent ast.Node, block text.Reader, pc pars
 		return nil
 	}
 
+	// Link labels belong to the link parser, not priority syntax.
+	if end+1 < len(line) && (line[end+1] == '(' || line[end+1] == '[') {
+		return nil
+	}
 	value := priorityFor(string(line[2:end]))
 	if value == content.PriorityNone || !isPriorityPosition(parent, block.Source()) {
 		block.Advance(end + 1)
@@ -78,12 +83,13 @@ func (t *strictPriorityParser) Parse(parent ast.Node, block text.Reader, pc pars
 
 	block.Advance(length)
 	return &strictPriority{
-		Priority: value,
+		Priority:     value,
+		OriginalText: string(line[:length]),
 	}
 }
 
-func priorityFor(value string) content.PriorityValue {
-	switch value {
+func priorityFor(value string) content.Priority {
+	switch strings.ToUpper(value) {
 	case "A":
 		return content.PriorityA
 	case "B":

@@ -30,8 +30,8 @@ var _ func(string) (content.NodeList, error) = logseq.ParseNodes
 
 var _ = Describe("Existing fork consumers", func() {
 	It("retains legacy priority constructors and values", func() {
-		var value content.PriorityValue = content.PriorityHigh
-		var priority *content.Priority = content.NewPriority(value).WithPriority(content.PriorityMedium)
+		var value content.Priority = content.PriorityHigh
+		var priority *content.TaskPriority = content.NewPriority(value).WithPriority(content.PriorityMedium)
 		Expect(priority.Priority).To(Equal(content.PriorityMedium))
 		Expect(content.NewPriorityFromString("b").Priority).To(Equal(content.PriorityMedium))
 	})

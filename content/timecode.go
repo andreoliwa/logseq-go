@@ -75,7 +75,7 @@ func timeStart(paragraph *Paragraph) Node {
 		}
 	}
 	skipSpace()
-	if _, ok := node.(*Priority); ok {
+	if _, ok := node.(*TaskPriority); ok {
 		node = node.NextSibling()
 		skipSpace()
 	}

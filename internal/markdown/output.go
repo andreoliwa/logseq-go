@@ -326,7 +326,7 @@ func (w *Output) Write(n content.Node) error {
 		return w.write(node.To, EscapePotentialMarkdown)
 	case *content.Hashtag:
 		return w.writeHashtag(node)
-	case *content.Priority:
+	case *content.TaskPriority:
 		return w.writePriority(node)
 	case *content.BlockRef:
 		return w.writeBlockRef(node)
@@ -941,16 +941,22 @@ func (w *Output) writeHashtag(node *content.Hashtag) error {
 	return nil
 }
 
-func (w *Output) writePriority(node *content.Priority) error {
+func (w *Output) writePriority(node *content.TaskPriority) error {
 	if w.opts.strict {
 		return w.writeTaskPriority(node)
 	}
-	// If we have original text (for both valid and invalid priorities), use it to preserve case
-	if node.OriginalText != "" {
+	// Original text preserves case only while it describes the current value.
+	// Checking the value also covers edits made directly to the exported field.
+	originalLetter := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(node.OriginalText), "[#"), "]")
+	originalPriority := content.ParsePriorityFromLetter(originalLetter)
+	if node.OriginalText != "" && originalPriority == node.Priority {
 		return w.writeRaw(node.OriginalText)
 	}
 
 	// Fallback: For valid priorities without original text, construct the output
+	if node.Priority == content.PriorityNone {
+		return nil
+	}
 	err := w.writeRaw("[#")
 	if err != nil {
 		return err
@@ -2214,15 +2220,29 @@ func (w *Output) writeTaskMarker(node *content.TaskMarker) error {
 
 func (w *Output) writeTaskPriority(node *content.TaskPriority) error {
 	var err error
+	originalLetter := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(node.OriginalText), "[#"), "]")
+	preserveCase := content.ParsePriorityFromLetter(originalLetter) == node.Priority
 	switch node.Priority {
 	case content.PriorityNone:
 		return nil
 	case content.PriorityA:
-		err = w.writeRaw("[#A]")
+		letter := "A"
+		if preserveCase && originalLetter == "a" {
+			letter = originalLetter
+		}
+		err = w.writeRaw("[#" + letter + "]")
 	case content.PriorityB:
-		err = w.writeRaw("[#B]")
+		letter := "B"
+		if preserveCase && originalLetter == "b" {
+			letter = originalLetter
+		}
+		err = w.writeRaw("[#" + letter + "]")
 	case content.PriorityC:
-		err = w.writeRaw("[#C]")
+		letter := "C"
+		if preserveCase && originalLetter == "c" {
+			letter = originalLetter
+		}
+		err = w.writeRaw("[#" + letter + "]")
 	default:
 		return fmt.Errorf("unsupported priority: %d", node.Priority)
 	}

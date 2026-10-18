@@ -43,7 +43,7 @@ func init() {
 			util.Prioritized(parser.NewCodeSpanParser(), 100),
 			util.Prioritized(&footnoteRefParser{}, 194),
 			util.Prioritized(&mathParser{}, 195),
-			util.Prioritized(&priorityParser{}, 196),
+			util.Prioritized(&strictPriorityParser{}, 196),
 			util.Prioritized(&macroParser{}, 197),
 			util.Prioritized(&blockRefParser{}, 198),
 			util.Prioritized(&pageLinkParser{}, 199),
@@ -94,7 +94,6 @@ type parseOptions struct {
 	// page, even where it is written as a link.
 	ignoredPageReferences map[string]struct{}
 	typedLogbooks         bool
-	strictPriorities      bool
 	builtInPropertyLists  bool
 }
 
@@ -111,8 +110,9 @@ func defaultParseOptions() parseOptions {
 // WithTypedLogbooks opts into structured CLOCK and state-change nodes.
 func WithTypedLogbooks() ParseOption { return func(o *parseOptions) { o.typedLogbooks = true } }
 
-// WithStrictPriorities opts into position-sensitive Logseq priority syntax.
-func WithStrictPriorities() ParseOption { return func(o *parseOptions) { o.strictPriorities = true } }
+// WithStrictPriorities is retained for callers; positional syntax is always enabled.
+// Deprecated: priorities are position-sensitive by default.
+func WithStrictPriorities() ParseOption { return func(o *parseOptions) {} }
 
 // WithBuiltInPropertyLists opts into implicit page references in Logseq lists.
 func WithBuiltInPropertyLists() ParseOption {
@@ -259,18 +259,6 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 		return content.NewAutoLink(string(node.URL(src))), nil
 	case *tag:
 		return content.NewHashtag(node.Page), nil
-	case *priority:
-		if node.IsValid {
-			// For valid priorities, preserve original text to maintain case
-			priority := content.NewPriorityFromString(node.Letter)
-			priority.OriginalText = node.OriginalText
-			return priority, nil
-		} else {
-			// For invalid priorities, create a Priority with PriorityNone and preserve original text
-			priority := content.NewPriority(content.PriorityNone)
-			priority.OriginalText = node.OriginalText
-			return priority, nil
-		}
 	case *pageLink:
 		return content.NewPageLink(node.Page), nil
 	case *pageRefText:
@@ -278,7 +266,9 @@ func convert(src []byte, in ast.Node) (content.Node, error) {
 	case *blockRef:
 		return content.NewBlockRef(node.ID), nil
 	case *strictPriority:
-		return content.NewTaskPriority(node.Priority), nil
+		value := content.NewTaskPriority(node.Priority)
+		value.OriginalText = node.OriginalText
+		return value, nil
 	case *macro:
 		return convertMacro(src, node)
 	case *ast.FencedCodeBlock:
@@ -1304,105 +1294,6 @@ func updatePreviousLine(node ast.Node, target content.PreviousLineAware) {
 		}
 	}
 }
-
-// Priority parser for [#A], [#B], [#C] patterns
-var priorityKind = ast.NewNodeKind("Priority")
-
-type priority struct {
-	ast.BaseInline
-	Letter       string
-	OriginalText string
-	IsValid      bool
-}
-
-func (*priority) Kind() ast.NodeKind {
-	return priorityKind
-}
-
-func (n *priority) Dump(src []byte, level int) {
-}
-
-// priorityParser parses Logseq style priority markers [#A], [#B], [#C]
-type priorityParser struct {
-}
-
-func (p *priorityParser) Trigger() []byte {
-	return []byte{'['}
-}
-
-func (p *priorityParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
-	if options, ok := pc.Get(parseOptionsKey).(*parseOptions); ok && options.strictPriorities {
-		return (&strictPriorityParser{}).Parse(parent, block, pc)
-	}
-
-	line, _ := block.PeekLine()
-
-	if len(line) < 4 { // Need at least "[#X]"
-		return nil
-	}
-
-	// Check if a priority has already been parsed in this paragraph
-	// Only allow one priority per paragraph/line
-	if parent != nil {
-		for child := parent.FirstChild(); child != nil; child = child.NextSibling() {
-			if child.Kind() == priorityKind {
-				return nil // Already have a priority in this paragraph
-			}
-		}
-	}
-
-	// Check for exact pattern [#X] where X is any letter
-	// Must be exactly: '[', '#', letter, ']' with no spaces
-	if line[0] != '[' || line[1] != '#' || line[3] != ']' {
-		return nil
-	}
-
-	// Ensure the character at position 2 is a letter (not space or other character)
-	letter := line[2]
-	if letter == ' ' || (letter < 'A' || letter > 'Z') && (letter < 'a' || letter > 'z') {
-		return nil
-	}
-
-	letterStr := string(letter)
-
-	// Check if it's a valid priority letter (A, B, C or a, b, c)
-	isValidLetter := letter == 'A' || letter == 'B' || letter == 'C' || letter == 'a' || letter == 'b' || letter == 'c'
-
-	// Check if there's a space after the closing bracket (or end of line)
-	hasSpaceAfter := len(line) == 4 || (len(line) > 4 && line[4] == ' ')
-
-	// A priority is valid only if it has a valid letter AND is followed by a space (or end of line)
-	isValid := isValidLetter && hasSpaceAfter
-
-	// For originalText, include the space if it exists (for proper output of invalid priorities)
-	originalTextLength := 4
-	if len(line) > 4 && line[4] == ' ' {
-		originalTextLength = 5
-	}
-	originalText := string(line[:originalTextLength])
-
-	// Create the priority node (even for invalid ones)
-	n := &priority{
-		Letter:       letterStr,
-		OriginalText: originalText,
-		IsValid:      isValid,
-	}
-
-	// Advance the reader by 4 characters ([#X])
-	advance := 4
-
-	// If there's a space after the closing bracket, consume it too
-	// This ensures the following text doesn't have a leading space
-	if len(line) > 4 && line[4] == ' ' {
-		advance = 5
-	}
-
-	block.Advance(advance)
-
-	return n
-}
-
-var _ parser.InlineParser = (*priorityParser)(nil)
 
 // updatePreviousLineKeepingBlank is updatePreviousLine for nodes that combine
 // with the previous line by default. For those a blank line before the node
