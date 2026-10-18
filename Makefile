@@ -16,3 +16,9 @@ test: # Run tests
 test-coverage: # Run tests with coverage
 	$(GO_TEST) -coverprofile=coverage-go.out
 .PHONY: test-coverage
+
+# make -C selects the library directory, including paths with spaces.
+LOGSEQ_GO_ROOT := $(CURDIR)
+check-upstream: # Report changes since the reviewed upstream snapshot
+	@if command -v python3 >/dev/null 2>&1; then python3 "$(LOGSEQ_GO_ROOT)/scripts/check-upstream.py"; else printf '%s\n' 'warning: upstream check requires python3'; fi
+.PHONY: check-upstream

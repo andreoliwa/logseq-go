@@ -263,3 +263,23 @@ Aliases are ordinary properties containing page-reference and separator nodes;
 `Alias` and `NewAlias` are removed. Use `content.NewProperty("alias", ...)`
 inside `content.NewProperties(...)`. Edit the current child nodes to change a
 value; preservation does not replay a stale whole-property string.
+
+## Checking upstream changes
+
+Run `make -C /absolute/path/to/logseq-go check-upstream` to compare upstream main
+with the tracked reviewed snapshot. This only reports a comparison link; it
+never fetches, merges, executes upstream code or updates the reviewed snapshot.
+
+The target needs Python 3 and curl on macOS/Linux. It uses no credentials or
+shell profiles. A cron-style environment can set `HOME`, a PATH containing
+`make`, `python3` and `curl`, and optionally `XDG_CACHE_HOME`. Output goes to
+stdout for normal shell/cron capture; no scheduler or notification service is
+installed. Paths containing spaces work when quoted.
+
+The library caches attempts under `$XDG_CACHE_HOME/logseq-go` or
+`$HOME/.cache/logseq-go`. `UPSTREAM_CHECK_INTERVAL_SECONDS` defaults to 86400;
+zero forces a lookup. Cached pending changes still print a notice. Failures
+warn without failing the target and stay throttled. Updating the tracked
+reviewed SHA invalidates the cached comparison. Concurrent invocations share a
+kernel lock, released even after a crash. CI skips networking. Requests have a
+six-second process deadline, with a shorter curl timeout.
