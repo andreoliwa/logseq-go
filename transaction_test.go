@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/andreoliwa/logseq-go/v2"
 	"github.com/andreoliwa/logseq-go/v2/content"
@@ -119,6 +120,9 @@ var _ = Describe("Transaction", func() {
 					// Convert any CRLF to LF to match logseq library output
 					originalContentStr := strings.ReplaceAll(string(originalContent), "\r\n", "\n")
 					expectedContent := originalContentStr + "- Hello world"
+					if strings.HasSuffix(originalContentStr, "\n") {
+						expectedContent += "\n"
+					}
 
 					err = os.WriteFile(goldenPath, []byte(expectedContent), 0644)
 					Expect(err).NotTo(HaveOccurred())
@@ -166,3 +170,99 @@ func copyMarkdownExample(tempDir, src, dest string) string {
 
 	return destPath
 }
+
+var _ = Describe("Page newline policy", func() {
+	DescribeTable("selects page endings independently of fragment output", func(preserve, isNew bool, source, want string) {
+		root := GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(root, "logseq"), 0755)).To(Succeed())
+		Expect(os.MkdirAll(filepath.Join(root, "pages"), 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(root, "logseq/config.edn"), []byte("{}"), 0644)).To(Succeed())
+		path := filepath.Join(root, "pages/Example.md")
+		if !isNew {
+			Expect(os.WriteFile(path, []byte(source), 0644)).To(Succeed())
+		}
+		var opts []logseq.Option
+		if preserve {
+			opts = append(opts, logseq.WithPreserveOutput())
+		}
+		graph, err := logseq.Open(context.Background(), root, opts...)
+		Expect(err).NotTo(HaveOccurred())
+		defer graph.Close()
+		tx := graph.NewTransaction()
+		page, err := tx.OpenPage("Example")
+		Expect(err).NotTo(HaveOccurred())
+		if isNew {
+			block, err := logseq.ParseBlock("_word_")
+			Expect(err).NotTo(HaveOccurred())
+			page.AddBlock(block)
+		}
+		Expect(tx.Save()).To(Succeed())
+		actual, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(actual)).To(Equal(want))
+	},
+		Entry("default existing page", false, false, "- _word_", "- *word*\n"),
+		Entry("preserved existing page without newline", true, false, "- _word_", "- _word_"),
+		Entry("preserved existing page with newline", true, false, "- _word_\n", "- _word_\n"),
+		Entry("default new page", false, true, "", "- *word*\n"),
+		Entry("preserved new page", true, true, "", "- _word_"),
+		Entry("default blank page", false, false, "\n", ""),
+		Entry("preserved blank page", true, false, "\n", "\n"),
+		Entry("preserved empty page", true, false, "", ""),
+	)
+
+})
+
+var _ = Describe("Unchanged preserved saves", func() {
+	It("does not rewrite an unchanged preserved page", func() {
+		root := GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(root, "logseq"), 0755)).To(Succeed())
+		Expect(os.MkdirAll(filepath.Join(root, "pages"), 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(root, "logseq/config.edn"), []byte("{}"), 0644)).To(Succeed())
+		path := filepath.Join(root, "pages/Example.md")
+		Expect(os.WriteFile(path, []byte("- _word_\n"), 0644)).To(Succeed())
+		old := time.Unix(100, 0)
+		Expect(os.Chtimes(path, old, old)).To(Succeed())
+		graph, err := logseq.Open(context.Background(), root, logseq.WithPreserveOutput())
+		Expect(err).NotTo(HaveOccurred())
+		defer graph.Close()
+		tx := graph.NewTransaction()
+		_, err = tx.OpenPage("Example")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tx.Save()).To(Succeed())
+		info, err := os.Stat(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.ModTime()).To(Equal(old))
+	})
+})
+
+var _ = Describe("Read-time page ending", func() {
+	It("uses captured newline presence rather than rereading it at save time", func() {
+		for _, ending := range []string{"", "\n"} {
+			root := GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(root, "logseq"), 0755)).To(Succeed())
+			Expect(os.MkdirAll(filepath.Join(root, "pages"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(root, "logseq/config.edn"), []byte("{}"), 0644)).To(Succeed())
+			path := filepath.Join(root, "pages/Example.md")
+			Expect(os.WriteFile(path, []byte("- task"+ending), 0644)).To(Succeed())
+			graph, err := logseq.Open(context.Background(), root, logseq.WithPreserveOutput())
+			Expect(err).NotTo(HaveOccurred())
+			tx := graph.NewTransaction()
+			page, err := tx.OpenPage("Example")
+			Expect(err).NotTo(HaveOccurred())
+			replacement := "\n"
+			if ending != "" {
+				replacement = ""
+			}
+			Expect(os.WriteFile(path, []byte("- task"+replacement), 0644)).To(Succeed())
+			// Keep the original mtime to isolate the captured-ending rule from the
+			// transaction's separate modified-since-opened safety check.
+			Expect(os.Chtimes(path, page.LastModified(), page.LastModified())).To(Succeed())
+			Expect(tx.Save()).To(Succeed())
+			actual, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(actual)).To(Equal("- task" + ending))
+			Expect(graph.Close()).To(Succeed())
+		}
+	})
+})

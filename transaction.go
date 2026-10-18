@@ -547,8 +547,14 @@ func (t *Transaction) Save() error {
 			}
 		}
 
-		// Upstream page output ends nonempty pages with a newline.
-		if data != "" && !t.graph.options.preserveOutput && !strings.HasSuffix(data, "\n") {
+		// Preservation uses the final-newline presence captured when reading the
+		// page. New pages have no captured terminator. Upstream output ends
+		// nonempty pages with a newline.
+		finalNewline := data != "" && !t.graph.options.preserveOutput
+		if t.graph.options.preserveOutput {
+			finalNewline = page.hadFinalNewline
+		}
+		if finalNewline && !strings.HasSuffix(data, "\n") {
 			data += "\n"
 		}
 
@@ -556,9 +562,14 @@ func (t *Transaction) Save() error {
 			return fmt.Errorf("failed to create directory for %s: %w", path, err)
 		}
 
-		err = os.WriteFile(path, []byte(data), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write page to %s: %w", path, err)
+		// Leave byte-identical files untouched, but still track them below so a
+		// rename/removal in this transaction cannot delete their destination.
+		existing, readErr := os.ReadFile(path)
+		if readErr != nil || string(existing) != data {
+			err = os.WriteFile(path, []byte(data), 0644)
+			if err != nil {
+				return fmt.Errorf("failed to write page to %s: %w", path, err)
+			}
 		}
 
 		if info, err := os.Stat(path); err == nil {

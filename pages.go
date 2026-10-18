@@ -117,9 +117,10 @@ type pageImpl struct {
 	// pages reached from this one become part of it as well.
 	source pageSource
 
-	path         string
-	isNew        bool
-	lastModified time.Time
+	path            string
+	isNew           bool
+	lastModified    time.Time
+	hadFinalNewline bool
 
 	pageType PageType
 	title    string
@@ -132,6 +133,7 @@ func openOrCreatePage(source pageSource, path string, pageType PageType, title s
 	// Get the last modified time for the file
 	info, err := os.Stat(path)
 	var root *content.Block
+	var hadFinalNewline bool
 	if os.IsNotExist(err) {
 		// This page does not exist, let's try to load the template
 		if templatePath == "" {
@@ -148,7 +150,7 @@ func openOrCreatePage(source pageSource, path string, pageType PageType, title s
 		return nil, err
 	} else {
 		// This page exists, load it
-		root, err = loadRootBlock(path, parseOptions...)
+		root, hadFinalNewline, err = loadRootBlockWithEnding(path, parseOptions...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load page: %w", err)
 		}
@@ -162,9 +164,10 @@ func openOrCreatePage(source pageSource, path string, pageType PageType, title s
 	return &pageImpl{
 		source: source,
 
-		path:         path,
-		isNew:        info == nil,
-		lastModified: lastModified,
+		path:            path,
+		isNew:           info == nil,
+		lastModified:    lastModified,
+		hadFinalNewline: hadFinalNewline,
 
 		pageType: pageType,
 		title:    title,
@@ -363,14 +366,21 @@ func (p *pageImpl) InsertBlockBefore(block *content.Block, before *content.Block
 }
 
 func loadRootBlock(path string, parseOptions ...markdown.ParseOption) (*content.Block, error) {
+	root, _, err := loadRootBlockWithEnding(path, parseOptions...)
+	return root, err
+}
+
+// loadRootBlockWithEnding captures the terminator from the same bytes used to
+// parse the page, regardless of its selected output policy.
+func loadRootBlockWithEnding(path string, parseOptions ...markdown.ParseOption) (*content.Block, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	block, err := markdown.Parse(data, parseOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse markdown: %w", err)
+		return nil, false, fmt.Errorf("failed to parse markdown: %w", err)
 	}
 
 	// Content that appears before the first bullet becomes the pre-block of the
@@ -395,5 +405,5 @@ func loadRootBlock(path string, parseOptions ...markdown.ParseOption) (*content.
 		block.PrependChild(preBlock)
 	}
 
-	return block, nil
+	return block, len(data) > 0 && data[len(data)-1] == '\n', nil
 }

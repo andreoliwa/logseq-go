@@ -253,3 +253,8 @@ opening a graph to retain source style. Standalone calls select
 `WriteMarkdownWithOptions`. Options affect only their graph or call; parsing
 always captures source style. Legacy strict-output helpers select the same
 upstream policy rather than a separate setting.
+
+Preserved page saves retain final-newline presence captured when the page was
+read: present stays present, absent stays absent. New preserved pages do not
+receive a forced newline. Default page saves end nonempty pages with a newline;
+standalone fragment serialization does not add a page terminator.
