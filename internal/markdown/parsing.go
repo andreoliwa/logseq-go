@@ -529,7 +529,7 @@ func convertTaskMarker(paragraph *content.Paragraph, block *content.Block) {
 	}
 
 	taskMarker := content.NewTaskMarker(taskStatus)
-	// Store parent references for use in WithStatus transitions
+	// Store parent references for use in TransitionTo transitions
 	taskMarker.SetParentReferences(paragraph, block)
 	paragraph.PrependChild(taskMarker)
 }

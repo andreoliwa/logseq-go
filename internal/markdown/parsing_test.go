@@ -2557,7 +2557,7 @@ var _ = Describe("Typed clock compatibility", func() {
 		block, err := markdown.ParseString("DOING work\n:LOGBOOK:\nCLOCK: [2025-04-05 Sat 01:00:00]\n:END:", markdown.WithTypedLogbooks())
 		Expect(err).NotTo(HaveOccurred())
 		marker := block.Content().FindDeep(content.IsOfType[*content.TaskMarker]()).(*content.TaskMarker)
-		_, err = marker.WithStatus(content.TaskStatusTodo)
+		_, err = marker.TransitionTo(content.TaskStatusTodo)
 		Expect(err).NotTo(HaveOccurred())
 		clock := block.Children().FindDeep(content.IsOfType[*content.LogbookEntryClock]()).(*content.LogbookEntryClock)
 		Expect(clock.IsRunning()).To(BeFalse())

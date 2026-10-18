@@ -212,6 +212,13 @@ return an error rather than uncertain offsets. On range errors, the parsed
 root and `outlined` flag remain available with nil ranges, so single-block
 consumers can retain ordinary parsing behavior when `outlined` is false.
 
+## Task status changes
+
+`marker.WithStatus(status)` is a chainable setter with no clock or property
+side effects. Use `marker.TransitionTo(status)` when returning a task to TODO
+should stop a running clock or remove completed/cancelled metadata. It returns
+`(*content.TaskMarker, error)` and retains the fork's transition rules.
+
 ## Compatible parsing and page navigation
 
 The existing `Page` interface and parsing function signatures remain unchanged.

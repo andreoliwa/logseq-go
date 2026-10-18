@@ -147,7 +147,7 @@ func NewTaskMarker(t TaskStatus) *TaskMarker {
 }
 
 // SetParentReferences stores references to the parent Paragraph and grandparent Block.
-// This is called during parsing to enable transition side effects in WithStatus.
+// This is called during parsing to enable transition side effects in TransitionTo.
 func (t *TaskMarker) SetParentReferences(paragraph *Paragraph, block *Block) {
 	t.parentParagraph = paragraph
 	t.parentBlock = block
@@ -204,10 +204,16 @@ func NewTaskMarkerFromString(t string) *TaskMarker {
 	}
 }
 
-// WithStatus sets the status of the task marker and performs any necessary
-// transition side effects (e.g., stopping running clocks, removing properties).
-// Returns an error if the transition fails.
-func (t *TaskMarker) WithStatus(status TaskStatus) (*TaskMarker, error) {
+// WithStatus sets the status without clock or property side effects.
+func (t *TaskMarker) WithStatus(status TaskStatus) *TaskMarker {
+	t.Status = status
+	return t
+}
+
+// TransitionTo changes the status and performs transition side effects,
+// such as stopping running clocks or removing completion properties.
+// It returns an error without changing the status if the transition fails.
+func (t *TaskMarker) TransitionTo(status TaskStatus) (*TaskMarker, error) {
 	oldStatus := t.Status
 
 	// Only execute transitions if we have parent block and status is changing

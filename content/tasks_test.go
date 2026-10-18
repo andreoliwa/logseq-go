@@ -125,7 +125,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 		DescribeTable("should change status without side effects",
 			func(fromStatus content.TaskStatus) {
 				task := createTaskWithStatus(fromStatus)
-				result, err := task.WithStatus(content.TaskStatusTodo)
+				result, err := task.TransitionTo(content.TaskStatusTodo)
 
 				Expect(err).ToNot(HaveOccurred())
 				Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -144,7 +144,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 			DescribeTable("should change status without errors",
 				func(fromStatus content.TaskStatus) {
 					task := createTaskWithStatus(fromStatus)
-					result, err := task.WithStatus(content.TaskStatusTodo)
+					result, err := task.TransitionTo(content.TaskStatusTodo)
 
 					Expect(err).ToNot(HaveOccurred())
 					Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -164,7 +164,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 				)
 				block.AddChild(logbook)
 
-				result, err := task.WithStatus(content.TaskStatusTodo)
+				result, err := task.TransitionTo(content.TaskStatusTodo)
 
 				Expect(err).ToNot(HaveOccurred())
 				Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -185,7 +185,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 					)
 					block.AddChild(logbook)
 
-					result, err := task.WithStatus(content.TaskStatusTodo)
+					result, err := task.TransitionTo(content.TaskStatusTodo)
 
 					Expect(err).ToNot(HaveOccurred())
 					Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -219,7 +219,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 			properties := block.Properties()
 			properties.Set("completed", content.NewText("2025-04-05"))
 
-			result, err := task.WithStatus(content.TaskStatusTodo)
+			result, err := task.TransitionTo(content.TaskStatusTodo)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -231,7 +231,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 		It("should not error if completed property doesn't exist", func() {
 			task := createTaskWithStatus(content.TaskStatusDone)
 
-			result, err := task.WithStatus(content.TaskStatusTodo)
+			result, err := task.TransitionTo(content.TaskStatusTodo)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -248,7 +248,7 @@ var _ = Describe("Task status transitions to TODO", func() {
 				properties := block.Properties()
 				properties.Set("cancelled", content.NewText("2025-04-05"))
 
-				result, err := task.WithStatus(content.TaskStatusTodo)
+				result, err := task.TransitionTo(content.TaskStatusTodo)
 
 				Expect(err).ToNot(HaveOccurred())
 				Expect(result.Status).To(Equal(content.TaskStatusTodo))
@@ -441,9 +441,32 @@ var _ = Describe("Typed clock status transitions", func() {
 		paragraph := content.NewParagraph(marker)
 		block := content.NewBlock(paragraph, content.NewLogbook(clock))
 		marker.SetParentReferences(paragraph, block)
-		_, err := marker.WithStatus(content.TaskStatusTodo)
+		_, err := marker.TransitionTo(content.TaskStatusTodo)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clock.IsRunning()).To(BeFalse())
 		Expect(clock.Duration()).To(BeNumerically(">=", time.Hour))
+	})
+})
+
+var _ = Describe("Setter and transition APIs", func() {
+	It("sets status without removing completion metadata", func() {
+		marker := content.NewTaskMarker(content.TaskStatusDone)
+		paragraph := content.NewParagraph(marker, content.NewText("task"))
+		block := content.NewBlock(paragraph, content.NewProperties(content.NewProperty("completed", content.NewText("original"))))
+		marker.SetParentReferences(paragraph, block)
+		result := marker.WithStatus(content.TaskStatusTodo)
+		Expect(result).To(BeIdenticalTo(marker))
+		Expect(marker.Status).To(Equal(content.TaskStatusTodo))
+		Expect(block.Properties().Get("completed")).To(HaveLen(1))
+	})
+	It("performs completion cleanup only through TransitionTo", func() {
+		marker := content.NewTaskMarker(content.TaskStatusDone)
+		paragraph := content.NewParagraph(marker)
+		block := content.NewBlock(paragraph, content.NewProperties(content.NewProperty("completed", content.NewText("original"))))
+		marker.SetParentReferences(paragraph, block)
+		result, err := marker.TransitionTo(content.TaskStatusTodo)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(BeIdenticalTo(marker))
+		Expect(block.Properties().Get("completed")).To(BeEmpty())
 	})
 })
