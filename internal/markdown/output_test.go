@@ -1924,3 +1924,113 @@ var _ = Describe("Audited writeBlock", func() {
 		Expect(preserved.String()).To(Equal("intro\n\n- child"))
 	})
 })
+
+var _ = Describe("Audited EscapeStrictMarkdown", func() {
+	It("separates upstream rendering from preserved source", func() {
+		node := content.NewText("\\*")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("\\\\*"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("\\*"))
+	})
+})
+
+var _ = Describe("Escaping writePageLink", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewPageLink("part\\]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("[[part\\\\]]]"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[[part\\]]]"))
+	})
+})
+
+var _ = Describe("Escaping writeHashtag", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewHashtag("part\\]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("#part\\\\]"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("#part\\]"))
+	})
+})
+
+var _ = Describe("Escaping writeBlockRef", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewBlockRef("part\\]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("((part\\\\]))"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("((part\\]))"))
+	})
+})
+
+var _ = Describe("Escaping writeFootnoteRef", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewFootnoteRef("part\\]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("[^part\\\\]]"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[^part\\]]"))
+	})
+})
+
+var _ = Describe("Escaping writeFootnoteDefinition", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewFootnoteDefinition("part\\]", content.NewText("value"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("[^part\\\\]]: value"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[^part\\]]: value"))
+	})
+})
+
+var _ = Describe("Escaping writeLink", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewLink("https://example.com/a_\\(b)", content.NewText("name")).WithTitle("part\\'")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("[name](https://example.com/a_\\\\(b\\) 'part\\\\'')"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[name](https://example.com/a_\\(b) 'part\\'')"))
+	})
+})
+
+var _ = Describe("Escaping writeImage", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewImage("https://example.com/a_\\(b)", content.NewText("name")).WithTitle("part\\'")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("![name](https://example.com/a_\\\\(b\\) 'part\\\\'')"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("![name](https://example.com/a_\\(b) 'part\\'')"))
+	})
+})
+
+var _ = Describe("Escaping writeMacro", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewMacro("name", "\\\",a")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("{{name \"\\\\\",a\"}}"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("{{name \"\\\",a\"}}"))
+	})
+})
+
+var _ = Describe("Escaping Write", func() {
+	It("escapes a literal backslash pair canonically but retains preservation", func() {
+		node := content.NewPageEmbed("part\\]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("{{embed [[part\\\\]]]}}"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("{{embed [[part\\]]]}}"))
+	})
+})

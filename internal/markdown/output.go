@@ -63,12 +63,12 @@ func EscapeStrictMarkdown(str string) string {
 			continue
 		}
 
-		out.WriteString(escapeRunes(str[end:match[0]], escapeStrictMarkdownRune))
+		out.WriteString(escapeCanonicalRunes(str[end:match[0]], escapeStrictMarkdownRune))
 		out.WriteString(str[match[0]:match[1]])
 		end = match[1]
 	}
 
-	out.WriteString(escapeRunes(str[end:], escapeStrictMarkdownRune))
+	out.WriteString(escapeCanonicalRunes(str[end:], escapeStrictMarkdownRune))
 	return out.String()
 }
 
@@ -344,9 +344,9 @@ func (w *Output) Write(n content.Node) error {
 	case *content.Query:
 		return w.writeMacro(node, "query", []string{node.Query})
 	case *content.PageEmbed:
-		return w.writeMacro(node, "embed", []string{"[[" + EscapeWikiLink(node.To) + "]]"})
+		return w.writeMacro(node, "embed", []string{"[[" + w.chooseEscape(EscapeWikiLink, canonicalEscapeWikiLink)(node.To) + "]]"})
 	case *content.BlockEmbed:
-		return w.writeMacro(node, "embed", []string{"((" + EscapeBlockRef(node.ID) + "))"})
+		return w.writeMacro(node, "embed", []string{"((" + w.chooseEscape(EscapeBlockRef, canonicalEscapeBlockRef)(node.ID) + "))"})
 	case *content.Cloze:
 		return w.writeCloze(node)
 	case *content.Heading:
@@ -674,7 +674,7 @@ func (w *Output) writeHighlight(node *content.Highlight) error {
 }
 
 func (w *Output) writeFootnoteRef(node *content.FootnoteRef) error {
-	return w.writeRaw("[^" + EscapeFootnoteLabel(node.Label) + "]")
+	return w.writeRaw("[^" + w.chooseEscape(EscapeFootnoteLabel, canonicalEscapeFootnoteLabel)(node.Label) + "]")
 }
 
 func (w *Output) writeFootnoteDefinition(node *content.FootnoteDefinition) error {
@@ -683,7 +683,7 @@ func (w *Output) writeFootnoteDefinition(node *content.FootnoteDefinition) error
 		return err
 	}
 
-	err = w.writeRaw("[^" + EscapeFootnoteLabel(node.Label) + "]: ")
+	err = w.writeRaw("[^" + w.chooseEscape(EscapeFootnoteLabel, canonicalEscapeFootnoteLabel)(node.Label) + "]: ")
 	if err != nil {
 		return err
 	}
@@ -843,7 +843,7 @@ func (w *Output) writeLink(node *content.Link) error {
 
 	escapeURL := EscapeNone
 	if w.opts.strict {
-		escapeURL = EscapeLinkURL
+		escapeURL = w.chooseEscape(EscapeLinkURL, canonicalEscapeLinkURL)
 	}
 	url := node.URL
 	if !w.opts.strict && node.OriginalURLAngleBrackets && !strings.ContainsAny(url, "<>\n") {
@@ -860,7 +860,7 @@ func (w *Output) writeLink(node *content.Link) error {
 			return err
 		}
 
-		err = w.write(node.Title, EscapeLinkTitle)
+		err = w.write(node.Title, w.chooseEscape(EscapeLinkTitle, canonicalEscapeLinkTitle))
 		if err != nil {
 			return err
 		}
@@ -909,7 +909,7 @@ func (w *Output) writePageLink(node *content.PageLink) error {
 		return err
 	}
 
-	err = w.write(node.To, EscapeWikiLink)
+	err = w.write(node.To, w.chooseEscape(EscapeWikiLink, canonicalEscapeWikiLink))
 	if err != nil {
 		return err
 	}
@@ -947,7 +947,7 @@ func (w *Output) writeHashtag(node *content.Hashtag) error {
 
 	escapeTarget := EscapePotentialMarkdown
 	if w.opts.strict {
-		escapeTarget = EscapeWikiLink
+		escapeTarget = w.chooseEscape(EscapeWikiLink, canonicalEscapeWikiLink)
 	}
 	err = w.write(node.To, escapeTarget)
 	if err != nil {
@@ -1016,7 +1016,7 @@ func (w *Output) writeBlockRef(node *content.BlockRef) error {
 		return err
 	}
 
-	err = w.write(node.ID, EscapeWikiLink)
+	err = w.write(node.ID, w.chooseEscape(EscapeWikiLink, canonicalEscapeWikiLink))
 	if err != nil {
 		return err
 	}
@@ -1047,7 +1047,7 @@ func (w *Output) writeImage(node *content.Image) error {
 
 	escapeURL := EscapeNone
 	if w.opts.strict {
-		escapeURL = EscapeLinkURL
+		escapeURL = w.chooseEscape(EscapeLinkURL, canonicalEscapeLinkURL)
 	}
 	err = w.write(node.URL, escapeURL)
 	if err != nil {
@@ -1060,7 +1060,7 @@ func (w *Output) writeImage(node *content.Image) error {
 			return err
 		}
 
-		err = w.write(node.Title, EscapeLinkTitle)
+		err = w.write(node.Title, w.chooseEscape(EscapeLinkTitle, canonicalEscapeLinkTitle))
 		if err != nil {
 			return err
 		}
@@ -1137,7 +1137,7 @@ func (w *Output) writeMacro(node content.Node, name string, arguments []string) 
 					return err
 				}
 
-				err = w.write(arg, EscapeMacroQuotedArgument)
+				err = w.write(arg, w.chooseEscape(EscapeMacroQuotedArgument, canonicalEscapeMacroQuotedArgument))
 				if err != nil {
 					return err
 				}
@@ -2448,4 +2448,63 @@ func sourceLogbookLayout(source string) string {
 		return logbookTimeLayout
 	}
 	return logbookTimeLayoutWithoutSeconds
+}
+
+// escapeCanonicalRunes follows upstream escaping even when the preceding rune
+// is a literal backslash. The preservation escaper retains its historical rule.
+func escapeCanonicalRunes(str string, predicate func(rune, rune) bool) string {
+	var output strings.Builder
+	var previous rune
+	for _, current := range str {
+		if predicate(previous, current) {
+			output.WriteRune('\\')
+		}
+		output.WriteRune(current)
+		previous = current
+	}
+	return output.String()
+}
+
+func canonicalEscapeWikiLink(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == ']'
+	})
+}
+
+// chooseEscape keeps historical escaping behind the same output policy as formatting.
+func (w *Output) chooseEscape(preserved, canonical EscapeFunc) EscapeFunc {
+	if w.opts.strict {
+		return canonical
+	}
+	return preserved
+}
+
+func canonicalEscapeFootnoteLabel(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == ']' || r == '['
+	})
+}
+
+func canonicalEscapeLinkURL(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == '(' || r == ')'
+	})
+}
+
+func canonicalEscapeLinkTitle(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == '"' || r == '\'' || r == ')'
+	})
+}
+
+func canonicalEscapeMacroQuotedArgument(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == '"'
+	})
+}
+
+func canonicalEscapeBlockRef(str string) string {
+	return escapeCanonicalRunes(str, func(prev rune, r rune) bool {
+		return r == ')'
+	})
 }
