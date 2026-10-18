@@ -1891,3 +1891,36 @@ var _ = Describe("Canonical writeTaskPriority", func() {
 		Expect(edited.String()).To(Equal("[#B]"))
 	})
 })
+
+var _ = Describe("Canonical writeNewlinePrefix", func() {
+	It("keeps source formatting isolated from upstream output", func() {
+		node := content.NewBlock(content.NewBlock(content.NewParagraph(content.NewText("top")), content.NewBlock(content.NewParagraph(content.NewText("first")), content.NewParagraph(content.NewText("second")))))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("- top\n\t- first\n\n\t  second"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("- top\n\t- first\n\t  \n\t  second"))
+	})
+})
+
+var _ = Describe("Canonical writeProperties", func() {
+	It("keeps source formatting isolated from upstream output", func() {
+		node := content.NewBlock(content.NewProperties(content.NewProperty("key", content.NewText("value"))), content.NewCodeBlock("a"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("key:: value\n\n```\na\n```"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("key:: value\n\n\n```\na\n```"))
+	})
+})
+
+var _ = Describe("Audited writeBlock", func() {
+	It("separates upstream rendering from preserved source", func() {
+		node := content.NewBlock(content.NewParagraph(content.NewText("intro")), content.NewBlock(content.NewParagraph(content.NewText("child")).WithPreviousLineType(content.PreviousLineTypeBlank)))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("intro\n- child"))
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("intro\n\n- child"))
+	})
+})

@@ -485,7 +485,7 @@ func (w *Output) writeNewlinePrefix(node content.BlockNode, doubleNewLineForAuto
 	}
 
 	// Handle Logseq indentation for empty lines
-	if prefix == "\n\n" && w.blockIndentLevel > 0 {
+	if !w.opts.strict && prefix == "\n\n" && w.blockIndentLevel > 0 {
 		// For the double newline, we need to write:
 		// 1. First newline (end of previous content)
 		// 2. Indented empty line
@@ -1990,7 +1990,7 @@ func (w *Output) writeBlock(node *content.Block) error {
 			}
 
 			var err error
-			if needsBlankLine {
+			if !w.opts.strict && needsBlankLine {
 				err = w.out.WriteString("\n\n")
 			} else {
 				err = w.out.WriteString("\n")
@@ -2126,7 +2126,7 @@ func (w *Output) writeProperties(node *content.Properties) error {
 	// Properties at the top of a page should always have a blank line after them,
 	// except when followed by a Paragraph, or when the blank line already exists.
 	// Check if this Properties node is the first child of the root block.
-	if nextSibling := node.NextSibling(); nextSibling != nil && node.PreviousSibling() == nil {
+	if nextSibling := node.NextSibling(); !w.opts.strict && nextSibling != nil && node.PreviousSibling() == nil {
 		// Don't add blank line if next sibling is a Paragraph
 		if _, isParagraph := nextSibling.(*content.Paragraph); isParagraph {
 			goto skipBlankLine
