@@ -1757,3 +1757,102 @@ var _ = Describe("Output", func() {
 		})
 	})
 })
+
+var _ = Describe("Canonical writeEmphasis", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewEmphasisWithCharacter('_', content.NewText("word"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("*word*"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("_word_"))
+	})
+})
+
+var _ = Describe("Canonical writeLink", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewLink("https://example.com/a_(b)", content.NewText("word_with_underscores"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("[word\\_with\\_underscores](https://example.com/a_\\(b\\))"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("[word_with_underscores](https://example.com/a_(b))"))
+	})
+})
+
+var _ = Describe("Canonical writeImage", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewImage("https://example.com/a_(b)", content.NewText("image"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("![image](https://example.com/a_\\(b\\))"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("![image](https://example.com/a_(b))"))
+	})
+})
+
+var _ = Describe("Canonical writeList", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewOrderedList(content.NewListItem(content.NewText("third")).WithOriginalNumber(3), content.NewListItem(content.NewText("seventh")).WithOriginalNumber(7))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("1. third\n2. seventh"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("3. third\n7. seventh"))
+	})
+})
+
+var _ = Describe("Canonical writeBlockquote", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewBlockquote(content.NewText("word")).WithOriginalLineFormats([]content.BlockquoteLineFormat{{HasMarker: true, Prefix: ">"}})
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("> word"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal(">word"))
+	})
+})
+
+var _ = Describe("Canonical writeHashtag", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewHashtag("tag]")
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("#tag\\]"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("#tag]"))
+	})
+})
+
+var _ = Describe("Canonical writeLogbook", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewLogbook(content.NewLogbookEntryRaw("CLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:99"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:99\n:END:"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:99\n:END:"))
+	})
+})
+
+var _ = Describe("Canonical writeHeading", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewHeading(1, content.NewText("first").WithSoftLineBreak(), content.NewText("second"))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("# first\n# second"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("# first\nsecond"))
+	})
+})
+
+var _ = Describe("Canonical writeCodeBlock", func() {
+	It("matches upstream output without losing the preserved form", func() {
+		node := content.NewBlock(content.NewBlock(content.NewCodeBlock("first\n\nsecond\n")))
+		var normal, preserved strings.Builder
+		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
+		Expect(normal.String()).To(Equal("- ```\n  first\n\n  second\n  ```"))
+		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(preserved.String()).To(Equal("- ```\n  first\n  \n  second\n  ```"))
+	})
+})

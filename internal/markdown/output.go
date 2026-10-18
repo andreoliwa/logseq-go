@@ -570,6 +570,9 @@ func (w *Output) writeEmphasis(node *content.Emphasis) error {
 
 	// Use the stored character instead of hardcoded star
 	emphasisChar := string(node.Character)
+	if w.opts.strict {
+		emphasisChar = "*"
+	}
 	err := w.writeRaw(emphasisChar)
 	if err != nil {
 		return err
@@ -803,7 +806,7 @@ func (w *Output) writeLink(node *content.Link) error {
 
 	// Set context flag to indicate we're inside a link
 	oldInsideLink := w.insideLink
-	w.insideLink = true
+	w.insideLink = !w.opts.strict
 
 	err = w.writeChildren(node)
 
@@ -819,7 +822,11 @@ func (w *Output) writeLink(node *content.Link) error {
 		return err
 	}
 
-	err = w.write(node.URL, EscapeNone)
+	escapeURL := EscapeNone
+	if w.opts.strict {
+		escapeURL = EscapeLinkURL
+	}
+	err = w.write(node.URL, escapeURL)
 	if err != nil {
 		return err
 	}
@@ -915,7 +922,11 @@ func (w *Output) writeHashtag(node *content.Hashtag) error {
 		}
 	}
 
-	err = w.write(node.To, EscapePotentialMarkdown)
+	escapeTarget := EscapePotentialMarkdown
+	if w.opts.strict {
+		escapeTarget = EscapeWikiLink
+	}
+	err = w.write(node.To, escapeTarget)
 	if err != nil {
 		return err
 	}
@@ -1005,7 +1016,11 @@ func (w *Output) writeImage(node *content.Image) error {
 		return err
 	}
 
-	err = w.write(node.URL, EscapeNone)
+	escapeURL := EscapeNone
+	if w.opts.strict {
+		escapeURL = EscapeLinkURL
+	}
+	err = w.write(node.URL, escapeURL)
 	if err != nil {
 		return err
 	}
@@ -1135,6 +1150,22 @@ func (w *Output) writeRawHTMLBlock(node *content.RawHTMLBlock) error {
 }
 
 func (w *Output) writeHeading(node *content.Heading) error {
+	if w.opts.strict {
+
+		err := w.startBlock(node, strings.Repeat("#", node.Level)+" ")
+		if err != nil {
+			return err
+		}
+
+		err = w.writeChildren(node)
+		if err != nil {
+			return err
+		}
+
+		w.endBlock()
+		return nil
+
+	}
 	// Handle newlines before the heading
 	// Since headings don't implement PreviousLineAware, this will use default behavior (\n\n)
 	err := w.writeNewlinePrefix(node, true)
@@ -1193,7 +1224,7 @@ func (w *Output) writeList(node *content.List) error {
 		var marker string
 		if node.Type == content.ListTypeOrdered {
 			var number int
-			if listItem.OriginalNumber > 0 {
+			if !w.opts.strict && listItem.OriginalNumber > 0 {
 				// Use the preserved original number
 				number = listItem.OriginalNumber
 			} else {
@@ -1401,6 +1432,31 @@ func tableDelimiterRow(node *content.Table, widths []int) string {
 }
 
 func (w *Output) writeBlockquote(node *content.Blockquote) error {
+	if w.opts.strict {
+
+		err := w.startBlock(node, "> ")
+		if err != nil {
+			return err
+		}
+
+		if !w.out.lastWasLineBreak {
+			// This is a hack to make sure that the indicator is written in lists
+			// if the blockquote is the first item in a list item.
+			_, err = w.out.output.Write([]byte{'>', ' '})
+			if err != nil {
+				return err
+			}
+		}
+
+		err = w.writeChildren(node)
+		if err != nil {
+			return err
+		}
+
+		w.endBlock()
+		return nil
+
+	}
 	// Check if we have original line format information
 	if len(node.OriginalLineFormats) > 0 {
 		return w.writeBlockquoteWithOriginalFormats(node)
@@ -1795,8 +1851,12 @@ func (w *Output) writeCodeBlock(node *content.CodeBlock) error {
 		return err
 	}
 
-	// Use writeRawPreservingWhitespace for the code content to preserve tabs and spaces
-	err = w.writeRawPreservingWhitespace(node.Code)
+	if w.opts.strict {
+		err = w.writeRaw(node.Code)
+	} else {
+		// Use writeRawPreservingWhitespace for the code content to preserve tabs and spaces
+		err = w.writeRawPreservingWhitespace(node.Code)
+	}
 	if err != nil {
 		return err
 	}
@@ -1809,9 +1869,11 @@ func (w *Output) writeCodeBlock(node *content.CodeBlock) error {
 		}
 	}
 
-	// Reset the lastWasLineBreak state to false so the closing ``` doesn't get extra indentation
-	// The closing ``` should be at the same level as the opening ```
-	w.out.lastWasLineBreak = false
+	if !w.opts.strict {
+		// Reset the lastWasLineBreak state to false so the closing ``` doesn't get extra indentation
+		// The closing ``` should be at the same level as the opening ```
+		w.out.lastWasLineBreak = false
+	}
 
 	err = w.writeRaw("```")
 	if err != nil {
@@ -2309,14 +2371,6 @@ func (w *Output) writeLogbook(node *content.Logbook) error {
 		switch e := entry.(type) {
 		case *content.LogbookEntryRaw:
 			value = e.Value
-			if w.opts.strict {
-				switch parsed := parseLogbookEntry(value).(type) {
-				case *content.LogbookEntryClock:
-					value, err = w.logbookClock(parsed)
-				case *content.LogbookEntryStateChange:
-					value, err = w.logbookStateChange(parsed)
-				}
-			}
 		case *content.LogbookEntryClock:
 			value, err = w.logbookClock(e)
 		case *content.LogbookEntryStateChange:
