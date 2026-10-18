@@ -83,3 +83,7 @@ Use reviewed corrective commits on master rather than discarding local work or
 rewriting history. Abort an unfinished merge only after verifying that no unrelated
 edits will be lost. Never restore the retired publisher alongside Release
 Please, move an existing release tag or publish a version just to test rollback.
+
+## Historical v1 retraction
+
+The v1 module retracts v1.0.0: semantic-release published it by default when Git tags were missing while the package was still experimental. The /v2 module cannot retract versions from the v1 module path; its published v1 metadata and tags remain unchanged.

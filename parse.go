@@ -1,8 +1,8 @@
 package logseq
 
 import (
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/markdown"
 )
 
 // ParseBlock parses markdown into a block, read the way Logseq reads a graph

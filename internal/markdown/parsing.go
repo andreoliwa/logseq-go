@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/v2/content"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	east "github.com/yuin/goldmark/extension/ast"

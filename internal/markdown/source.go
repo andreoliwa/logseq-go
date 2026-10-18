@@ -3,7 +3,7 @@ package markdown
 import (
 	"fmt"
 
-	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/v2/content"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"

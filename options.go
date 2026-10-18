@@ -1,6 +1,6 @@
 package logseq
 
-import "github.com/andreoliwa/logseq-go/content"
+import "github.com/andreoliwa/logseq-go/v2/content"
 
 type Option func(*options)
 

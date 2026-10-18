@@ -1,7 +1,7 @@
 package markdown_test
 
 import (
-	"github.com/andreoliwa/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/v2/internal/markdown"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

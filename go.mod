@@ -1,10 +1,8 @@
-module github.com/andreoliwa/logseq-go
+module github.com/andreoliwa/logseq-go/v2
 
 go 1.23.0
 
 toolchain go1.24.2
-
-retract v1.0.0 // This version is invalid, the package is still experimental. It was published by default by semantic-release due to lack of Git tags.
 
 require (
 	github.com/blugelabs/bluge v0.2.2

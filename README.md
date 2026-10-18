@@ -17,7 +17,7 @@ when pages are modified. Please open issues if you find any bugs.
 >
 > This fork continues development independently and includes all features from the original
 > plus additional improvements.
-> You can download it from [Go Packages](https://pkg.go.dev/github.com/andreoliwa/logseq-go) with `go get github.com/andreoliwa/logseq-go`.
+> You can download it from [Go Packages](https://pkg.go.dev/github.com/andreoliwa/logseq-go/v2) with `go get github.com/andreoliwa/logseq-go/v2`.
 
 ## Features
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/andreoliwa/logseq-go/internal/indexing"
+	"github.com/andreoliwa/logseq-go/v2/internal/indexing"
 )
 
 // pageTitlesUnderNamespace finds the titles of all the pages in a namespace,

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/markdown"
 )
 
 type Transaction struct {

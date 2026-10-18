@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/indexing"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/indexing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

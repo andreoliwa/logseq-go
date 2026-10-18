@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/andreoliwa/logseq-go"
+	"github.com/andreoliwa/logseq-go/v2"
 )
 
 func main() {

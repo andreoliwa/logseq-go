@@ -1,6 +1,6 @@
 package logseq
 
-import "github.com/andreoliwa/logseq-go/internal/indexing"
+import "github.com/andreoliwa/logseq-go/v2/internal/indexing"
 
 type Query = indexing.Query
 

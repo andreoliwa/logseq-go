@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/utils"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/utils"
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/index"
 	"github.com/blugelabs/bluge/search"

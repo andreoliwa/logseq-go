@@ -3,7 +3,7 @@ package utils_test
 import (
 	"time"
 
-	"github.com/andreoliwa/logseq-go/internal/utils"
+	"github.com/andreoliwa/logseq-go/v2/internal/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

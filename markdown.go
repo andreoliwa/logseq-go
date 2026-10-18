@@ -3,8 +3,8 @@ package logseq
 import (
 	"io"
 
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/markdown"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/markdown"
 )
 
 // AsMarkdown serializes a content node back to a Markdown string.

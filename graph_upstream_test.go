@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	logseq "github.com/andreoliwa/logseq-go"
-	"github.com/andreoliwa/logseq-go/content"
-	. "github.com/andreoliwa/logseq-go/internal/tests"
+	logseq "github.com/andreoliwa/logseq-go/v2"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	. "github.com/andreoliwa/logseq-go/v2/internal/tests"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

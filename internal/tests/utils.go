@@ -3,7 +3,7 @@ package tests
 import (
 	"strings"
 
-	"github.com/andreoliwa/logseq-go/content"
+	"github.com/andreoliwa/logseq-go/v2/content"
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 )

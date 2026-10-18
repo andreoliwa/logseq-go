@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	logseq "github.com/andreoliwa/logseq-go"
+	logseq "github.com/andreoliwa/logseq-go/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

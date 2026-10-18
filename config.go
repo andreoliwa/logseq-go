@@ -1,8 +1,8 @@
 package logseq
 
 import (
-	"github.com/andreoliwa/logseq-go/content"
-	"github.com/andreoliwa/logseq-go/internal/utils"
+	"github.com/andreoliwa/logseq-go/v2/content"
+	"github.com/andreoliwa/logseq-go/v2/internal/utils"
 )
 
 // Workflow is the pair of task markers that a graph uses for its tasks, set
