@@ -45,7 +45,7 @@ var _ = Describe("Linked references", func() {
 		page, err := graph.OpenPage(title)
 		Expect(err).ToNot(HaveOccurred())
 
-		results, err := page.(logseq.PageNavigation).LinkedReferences(ctx, opts...)
+		results, err := page.LinkedReferences(ctx, opts...)
 		Expect(err).ToNot(HaveOccurred())
 		return results
 	}
@@ -152,7 +152,7 @@ var _ = Describe("Linked references", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(journal.Title()).To(Equal("Jun 15th, 2025"))
 
-		results, err := journal.(logseq.PageNavigation).LinkedReferences(ctx)
+		results, err := journal.LinkedReferences(ctx)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results.Size()).To(Equal(1))
 		Expect(results.Results()[0].PageTitle()).To(Equal("referrer"))
@@ -185,7 +185,7 @@ var _ = Describe("Linked references", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(page.IsNew()).To(BeTrue())
 
-		results, err := page.(logseq.PageNavigation).LinkedReferences(ctx)
+		results, err := page.LinkedReferences(ctx)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results.Size()).To(Equal(1))
 	})
@@ -242,7 +242,7 @@ var _ = Describe("Linked references", func() {
 		page, err := tx.OpenPage("target")
 		Expect(err).ToNot(HaveOccurred())
 
-		results, err := page.(logseq.PageNavigation).LinkedReferences(ctx)
+		results, err := page.LinkedReferences(ctx)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results.Size()).To(Equal(1))
 
@@ -265,7 +265,7 @@ var _ = Describe("Linked references", func() {
 		page, err := graph.OpenPage("target")
 		Expect(err).ToNot(HaveOccurred())
 
-		_, err = page.(logseq.PageNavigation).LinkedReferences(ctx)
+		_, err = page.LinkedReferences(ctx)
 		Expect(err).To(HaveOccurred())
 	})
 })

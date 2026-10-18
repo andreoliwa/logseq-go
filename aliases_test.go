@@ -32,7 +32,7 @@ var _ = Describe("Aliases", func() {
 	aliasesOf := func(title string) []string {
 		page, err := graph.OpenPage(title)
 		Expect(err).ToNot(HaveOccurred())
-		return page.(logseq.PageNavigation).Aliases()
+		return page.Aliases()
 	}
 
 	Describe("Aliases of a page", func() {

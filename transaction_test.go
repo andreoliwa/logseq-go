@@ -266,3 +266,29 @@ var _ = Describe("Read-time page ending", func() {
 		}
 	})
 })
+
+var _ = Describe("Preserved pre-block separation", func() {
+	It("keeps the read-time gap after inserting a first bullet", func() {
+		for _, prefix := range []string{"Prose header", "tags:: [[Metadata]]"} {
+			for _, gap := range []string{"\n", "\n\n"} {
+				dir := GinkgoT().TempDir()
+				Expect(os.MkdirAll(filepath.Join(dir, "pages"), 0o755)).To(Succeed())
+				Expect(os.MkdirAll(filepath.Join(dir, "logseq"), 0o755)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(dir, "logseq", "config.edn"), []byte("{}"), 0o644)).To(Succeed())
+				path := filepath.Join(dir, "pages", "Header.md")
+				Expect(os.WriteFile(path, []byte(prefix+gap+"- Existing\n"), 0o644)).To(Succeed())
+				graph, err := logseq.Open(context.Background(), dir, logseq.WithPreserveOutput())
+				Expect(err).NotTo(HaveOccurred())
+				tx := graph.NewTransaction()
+				page, err := tx.OpenPage("Header")
+				Expect(err).NotTo(HaveOccurred())
+				page.PrependBlock(content.NewBlock(content.NewText("Added")))
+				Expect(tx.Save()).To(Succeed())
+				data, err := os.ReadFile(path)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(data)).To(Equal(prefix + gap + "- Added\n- Existing\n"))
+				Expect(graph.Close()).To(Succeed())
+			}
+		}
+	})
+})

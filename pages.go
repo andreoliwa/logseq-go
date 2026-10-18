@@ -46,10 +46,10 @@ type Page interface {
 	// check if the page was loaded from disk or not.
 	LastModified() time.Time
 
-	// Properties returns the properties for the page.
+	// Properties returns page-level properties, creating a pre-block if needed.
 	Properties() *content.Properties
 
-	// Blocks returns the blocks for the page.
+	// Blocks returns all page blocks, including an unbulleted pre-block.
 	Blocks() content.BlockList
 
 	// AddBlock adds a block to the page.
@@ -66,15 +66,6 @@ type Page interface {
 
 	// InsertBlockBefore inserts a block before another block.
 	InsertBlockBefore(block *content.Block, before *content.Block)
-}
-
-// PageNavigation exposes optional graph navigation without extending Page.
-type PageNavigation interface {
-	Page
-	// ContentBlocks includes the page pre-block as well as its bullet blocks.
-	ContentBlocks() content.BlockList
-	// PageProperties accesses page-level properties before the first bullet.
-	PageProperties() *content.Properties
 	// Aliases returns the alternative titles of the page, as declared by its
 	// `alias` property. In a graph with indexing enabled, opening a page by one
 	// of its aliases opens the page itself.
@@ -198,16 +189,6 @@ func (p *pageImpl) Date() time.Time {
 }
 
 func (p *pageImpl) Properties() *content.Properties {
-	blocks := p.Blocks()
-	if len(blocks) == 0 {
-		block := content.NewBlock()
-		p.root.AddChild(block)
-		blocks = content.BlockList{block}
-	}
-	return blocks[0].Properties()
-}
-
-func (p *pageImpl) PageProperties() *content.Properties {
 	if properties := p.findProperties(); properties != nil {
 		return properties
 	}
@@ -325,10 +306,8 @@ func (p *pageImpl) preBlock() *content.Block {
 }
 
 func (p *pageImpl) Blocks() content.BlockList {
-	return p.root.Blocks().Filter(func(block *content.Block) bool { return !block.IsPreBlock() })
+	return p.root.Blocks()
 }
-
-func (p *pageImpl) ContentBlocks() content.BlockList { return p.root.Blocks() }
 
 func (p *pageImpl) LinkedReferences(ctx context.Context, opts ...SearchOption) (SearchResults[BlockResult], error) {
 	options := make([]SearchOption, 0, len(opts)+1)
@@ -398,6 +377,16 @@ func loadRootBlockWithEnding(path string, parseOptions ...markdown.ParseOption) 
 
 	if len(leading) > 0 {
 		preBlock := content.NewPreBlock()
+		if properties, ok := leading[len(leading)-1].(*content.Properties); ok && properties.NextSibling() != nil {
+			preBlock.OriginalTrailingBlankLine = content.PreviousLineTypeNonBlank
+			if properties.HasBlankLineAfter() {
+				preBlock.OriginalTrailingBlankLine = content.PreviousLineTypeBlank
+			}
+		} else if next, ok := leading[len(leading)-1].NextSibling().(*content.Block); ok {
+			if previous, ok := next.FirstChild().(content.PreviousLineAware); ok {
+				preBlock.OriginalTrailingBlankLine = previous.PreviousLineType()
+			}
+		}
 		for _, node := range leading {
 			preBlock.AddChild(node)
 		}

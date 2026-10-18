@@ -892,14 +892,8 @@ func openIncomingGraph(ctx context.Context, dir string, opts ...logseq.Option) (
 }
 
 func incomingBlocks(value interface{ Blocks() content.BlockList }) content.BlockList {
-	if page, ok := value.(logseq.PageNavigation); ok {
-		return page.ContentBlocks()
-	}
 	return value.Blocks()
 }
 func incomingProperties(value interface{ Properties() *content.Properties }) *content.Properties {
-	if page, ok := value.(logseq.PageNavigation); ok {
-		return page.PageProperties()
-	}
 	return value.Properties()
 }

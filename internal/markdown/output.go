@@ -2002,7 +2002,10 @@ func (w *Output) writeBlock(node *content.Block) error {
 
 				if child.NextSibling() != nil {
 					if !w.opts.strict {
-						if _, endsWithProperties := child.LastChild().(*content.Properties); endsWithProperties {
+						_, endsWithProperties := child.LastChild().(*content.Properties)
+						hasGap := child.OriginalTrailingBlankLine == content.PreviousLineTypeBlank ||
+							(child.OriginalTrailingBlankLine == content.PreviousLineTypeAutomatic && endsWithProperties)
+						if hasGap {
 							if err := w.writeRaw("\n"); err != nil {
 								return err
 							}

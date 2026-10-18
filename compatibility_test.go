@@ -1,6 +1,7 @@
 package logseq_test
 
 import (
+	"context"
 	logseq "github.com/andreoliwa/logseq-go/v2"
 	"github.com/andreoliwa/logseq-go/v2/content"
 	. "github.com/onsi/ginkgo/v2"
@@ -8,7 +9,7 @@ import (
 	"time"
 )
 
-// Deliberately implement the original interface without embedding library types.
+// Deliberately implement the public Page interface without embedding library types.
 type externalPage struct{}
 
 func (*externalPage) Type() logseq.PageType                            { return logseq.PageTypeDedicated }
@@ -60,3 +61,14 @@ var _ = Describe("Existing fork consumers", func() {
 		Expect(ranges).To(HaveLen(1))
 	})
 })
+
+var _ = func(page logseq.Page) []string { return page.Aliases() }
+
+func (*externalPage) Aliases() []string { return nil }
+func (*externalPage) Namespace() string { return "" }
+func (*externalPage) NamespaceChildren(context.Context, ...logseq.SearchOption) (logseq.SearchResults[logseq.PageResult], error) {
+	return nil, nil
+}
+func (*externalPage) LinkedReferences(context.Context, ...logseq.SearchOption) (logseq.SearchResults[logseq.BlockResult], error) {
+	return nil, nil
+}

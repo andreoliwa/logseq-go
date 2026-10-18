@@ -415,7 +415,7 @@ func (g *Graph) indexDocument(ctx context.Context, docPath string) (Page, error)
 	if impl, ok := page.(*pageImpl); ok {
 		// Look up the properties without creating them, as indexing should not
 		// modify the page.
-		doc.Blocks = impl.ContentBlocks()
+		doc.Blocks = impl.Blocks()
 		doc.Properties = impl.findProperties()
 		doc.Aliases = impl.Aliases()
 	}

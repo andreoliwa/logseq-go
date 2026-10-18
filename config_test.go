@@ -302,7 +302,7 @@ var _ = Describe("Config", func() {
 			page, err := graph.OpenPage(title)
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := page.(logseq.PageNavigation).LinkedReferences(context.Background())
+			results, err := page.LinkedReferences(context.Background())
 			Expect(err).ToNot(HaveOccurred())
 			return results.Size()
 		}

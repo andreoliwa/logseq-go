@@ -221,12 +221,11 @@ should stop a running clock or remove completed/cancelled metadata. It returns
 
 ## Compatible parsing and page navigation
 
-The existing `Page` interface and parsing function signatures remain unchanged.
-Pages opened by the graph also implement the optional `logseq.PageNavigation`
-interface. Use a type assertion to access aliases, namespaces, linked references,
-`ContentBlocks()` (including the unbulleted pre-block) and `PageProperties()`
-(page-level properties before the first bullet). `Page.Blocks()` still returns
-bullet blocks, and `Page.Properties()` still accesses the first bullet's properties.
+`Page` directly exposes aliases, namespaces and linked references. `Blocks()`
+includes the unbulleted pre-block; filter `block.IsPreBlock()` when traversing
+only bullet tasks. `Properties()` accesses page-level metadata, creating a
+pre-block when needed. `PrependBlock` inserts after an existing pre-block.
+The former PageNavigation, ContentBlocks and PageProperties APIs are removed.
 
 Priorities use position-sensitive A/B/C syntax, including lowercase letters.
 Middle and unknown-letter markers remain literal text. Default parsing still

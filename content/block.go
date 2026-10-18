@@ -5,6 +5,10 @@ import "github.com/google/uuid"
 // Block is a piece of information in an outline, either belonging to a page
 // or another block.
 type Block struct {
+	// OriginalTrailingBlankLine records the source gap after a page pre-block.
+	// Automatic retains the default for blocks constructed without source metadata.
+	OriginalTrailingBlankLine PreviousLineType
+
 	baseNodeWithChildren
 
 	properties *Properties

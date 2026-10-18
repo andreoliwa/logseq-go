@@ -463,8 +463,8 @@ var _ = Describe("Graph", func() {
 	})
 })
 
-var _ = Describe("Legacy page contracts", func() {
-	It("keeps the pre-block out of the existing Blocks API", func() {
+var _ = Describe("Page contracts", func() {
+	It("includes the pre-block in Blocks", func() {
 		dir := setupGraph()
 		Expect(os.WriteFile(filepath.Join(dir, "pages", "legacy.md"), []byte("alias:: Other\n- Task\n"), 0644)).To(Succeed())
 		graph, err := logseq.Open(context.Background(), dir)
@@ -472,10 +472,10 @@ var _ = Describe("Legacy page contracts", func() {
 		defer graph.Close()
 		page, err := graph.OpenPage("legacy")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(page.Blocks()).To(HaveLen(1))
-		Expect(page.Blocks()[0].IsPreBlock()).To(BeFalse())
+		Expect(page.Blocks()).To(HaveLen(2))
+		Expect(page.Blocks()[0].IsPreBlock()).To(BeTrue())
 	})
-	It("creates first-block properties through the existing Properties API", func() {
+	It("creates page-level properties in the pre-block", func() {
 		graph, err := logseq.Open(context.Background(), setupGraph())
 		Expect(err).NotTo(HaveOccurred())
 		defer graph.Close()
@@ -483,6 +483,6 @@ var _ = Describe("Legacy page contracts", func() {
 		Expect(err).NotTo(HaveOccurred())
 		page.Properties().Set("key", content.NewText("value"))
 		Expect(page.Blocks()).To(HaveLen(1))
-		Expect(page.Blocks()[0].IsPreBlock()).To(BeFalse())
+		Expect(page.Blocks()[0].IsPreBlock()).To(BeTrue())
 	})
 })

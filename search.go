@@ -228,9 +228,6 @@ func (b *blockResultImpl) Open() (*content.Block, Page, error) {
 	}
 
 	blocks := page.Blocks()
-	if navigation, ok := page.(PageNavigation); ok {
-		blocks = navigation.ContentBlocks()
-	}
 
 	if b.id != "" {
 		// We have a stable identifier, use that to find the block

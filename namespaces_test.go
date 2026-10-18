@@ -43,7 +43,7 @@ var _ = Describe("Namespaces", func() {
 		page, err := graph.OpenPage(title)
 		Expect(err).ToNot(HaveOccurred())
 
-		results, err := page.(logseq.PageNavigation).NamespaceChildren(ctx, opts...)
+		results, err := page.NamespaceChildren(ctx, opts...)
 		Expect(err).ToNot(HaveOccurred())
 		return results
 	}
@@ -56,7 +56,7 @@ var _ = Describe("Namespaces", func() {
 
 			page, err := graph.OpenPage("page")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(page.(logseq.PageNavigation).Namespace()).To(Equal(""))
+			Expect(page.Namespace()).To(Equal(""))
 		})
 
 		It("is the part of the title before the last slash", func() {
@@ -68,7 +68,7 @@ var _ = Describe("Namespaces", func() {
 			page, err := graph.OpenPage("parent/child")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(page.IsNew()).To(BeFalse())
-			Expect(page.(logseq.PageNavigation).Namespace()).To(Equal("parent"))
+			Expect(page.Namespace()).To(Equal("parent"))
 		})
 
 		It("keeps the parts of a nested namespace", func() {
@@ -78,7 +78,7 @@ var _ = Describe("Namespaces", func() {
 
 			page, err := graph.OpenPage("parent/child/grandchild")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(page.(logseq.PageNavigation).Namespace()).To(Equal("parent/child"))
+			Expect(page.Namespace()).To(Equal("parent/child"))
 		})
 
 		It("is empty for a journal", func() {
@@ -88,7 +88,7 @@ var _ = Describe("Namespaces", func() {
 
 			journal, err := graph.OpenJournal(time.Date(2025, 6, 15, 0, 0, 0, 0, time.Local))
 			Expect(err).ToNot(HaveOccurred())
-			Expect(journal.(logseq.PageNavigation).Namespace()).To(Equal(""))
+			Expect(journal.Namespace()).To(Equal(""))
 		})
 	})
 
@@ -126,7 +126,7 @@ var _ = Describe("Namespaces", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(page.IsNew()).To(BeTrue())
 
-			results, err := page.(logseq.PageNavigation).NamespaceChildren(ctx)
+			results, err := page.NamespaceChildren(ctx)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(titles(results)).To(ConsistOf("parent/child"))
 		})
@@ -170,7 +170,7 @@ var _ = Describe("Namespaces", func() {
 			child, err := results.Results()[0].Open()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(child.Title()).To(Equal("parent/child"))
-			Expect(child.(logseq.PageNavigation).Namespace()).To(Equal("parent"))
+			Expect(child.Namespace()).To(Equal("parent"))
 		})
 
 		It("saves changes to a child opened in a transaction", func() {
@@ -182,7 +182,7 @@ var _ = Describe("Namespaces", func() {
 			parent, err := tx.OpenPage("parent")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := parent.(logseq.PageNavigation).NamespaceChildren(ctx)
+			results, err := parent.NamespaceChildren(ctx)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(results.Size()).To(Equal(1))
 
@@ -205,7 +205,7 @@ var _ = Describe("Namespaces", func() {
 			page, err := graph.OpenPage("parent")
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = page.(logseq.PageNavigation).NamespaceChildren(ctx)
+			_, err = page.NamespaceChildren(ctx)
 			Expect(err).To(HaveOccurred())
 		})
 	})
