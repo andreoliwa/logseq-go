@@ -5,13 +5,12 @@ import "github.com/andreoliwa/logseq-go/v2/content"
 type Option func(*options)
 
 type options struct {
-	parseOptions         []ParseOption
-	strictMarkdownOutput bool
-	index                bool
-	indexDirectory       string
+	parseOptions   []ParseOption
+	preserveOutput bool
+	index          bool
+	indexDirectory string
 
 	recycleDeletedPages bool
-	finalNewline        bool
 
 	listener func(event OpenEvent)
 
@@ -86,11 +85,17 @@ func WithBlockTimeFormatter(f func(string) content.InlineNode) Option {
 	}
 }
 
-// WithFinalNewline ensures saved pages end with a newline, including new files.
-func WithFinalNewline() Option { return func(o *options) { o.finalNewline = true } }
+// WithFinalNewline selects upstream output, including final newlines on page saves.
+// Deprecated: upstream output is the default; use WithPreserveOutput for source style.
+func WithFinalNewline() Option { return WithStrictMarkdownOutput() }
 
-// WithStrictMarkdownOutput escapes literal Markdown according to Logseq syntax.
-func WithStrictMarkdownOutput() Option { return func(o *options) { o.strictMarkdownOutput = true } }
+// WithStrictMarkdownOutput selects upstream output and disables preservation.
+// Deprecated: upstream output is the default.
+func WithStrictMarkdownOutput() Option { return func(o *options) { o.preserveOutput = false } }
+
+// WithPreserveOutput retains the fork's source formatting when rendering and
+// saving graph pages. Parsing captures source style independently of this option.
+func WithPreserveOutput() Option { return func(o *options) { o.preserveOutput = true } }
 
 // WithParseOptions opts into parsing representations for graph pages and blocks.
 // Graph property configuration is applied after these options.

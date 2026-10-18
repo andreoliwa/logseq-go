@@ -247,8 +247,9 @@ Pass the same parser options to `logseq.WithParseOptions(...)` when opening a
 graph to enable those representations for loaded pages, indexing and graph
 parsing. Graph property configuration applies after these parser options.
 
-Default output retains the existing Markdown escaping and save behavior. Use
-`logseq.AsMarkdownWithOptions(node, logseq.WithStrictOutput())` for stricter
-literal escaping. Graphs accept `logseq.WithStrictMarkdownOutput()` for that
-formatting when saving, and `logseq.WithFinalNewline()` to end saved files with
-a newline. Neither option changes the default behavior.
+Default output uses upstream formatting. Use `logseq.WithPreserveOutput()` when
+opening a graph to retain source style. Standalone calls select
+`logseq.WithPreservedMarkdown()` through `AsMarkdownWithOptions` or
+`WriteMarkdownWithOptions`. Options affect only their graph or call; parsing
+always captures source style. Legacy strict-output helpers select the same
+upstream policy rather than a separate setting.

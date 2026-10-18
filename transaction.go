@@ -547,9 +547,8 @@ func (t *Transaction) Save() error {
 			}
 		}
 
-		// Preserve an existing final newline without adding one to legacy files.
-		// Callers can explicitly request final newlines for newly created files.
-		if data != "" && t.graph.options.finalNewline && !strings.HasSuffix(data, "\n") {
+		// Upstream page output ends nonempty pages with a newline.
+		if data != "" && !t.graph.options.preserveOutput && !strings.HasSuffix(data, "\n") {
 			data += "\n"
 		}
 

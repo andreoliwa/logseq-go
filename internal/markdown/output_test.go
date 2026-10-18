@@ -16,7 +16,7 @@ var _ = Describe("Output", func() {
 
 	BeforeEach(func() {
 		buf = &strings.Builder{}
-		writer = markdown.NewWriter(buf)
+		writer = markdown.NewWriter(buf, markdown.WithPreservedOutput())
 	})
 
 	Describe("Text", func() {
@@ -1764,7 +1764,7 @@ var _ = Describe("Canonical writeEmphasis", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("*word*"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("_word_"))
 	})
 })
@@ -1775,7 +1775,7 @@ var _ = Describe("Canonical writeLink", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("[word\\_with\\_underscores](https://example.com/a_\\(b\\))"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("[word_with_underscores](https://example.com/a_(b))"))
 	})
 })
@@ -1786,7 +1786,7 @@ var _ = Describe("Canonical writeImage", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("![image](https://example.com/a_\\(b\\))"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("![image](https://example.com/a_(b))"))
 	})
 })
@@ -1797,7 +1797,7 @@ var _ = Describe("Canonical writeList", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("1. third\n2. seventh"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("3. third\n7. seventh"))
 	})
 })
@@ -1808,7 +1808,7 @@ var _ = Describe("Canonical writeBlockquote", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("> word"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal(">word"))
 	})
 })
@@ -1819,7 +1819,7 @@ var _ = Describe("Canonical writeHashtag", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("#tag\\]"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("#tag]"))
 	})
 })
@@ -1830,7 +1830,7 @@ var _ = Describe("Canonical writeLogbook", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:99\n:END:"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal(":LOGBOOK:\nCLOCK: [2023-06-26 Mon 17:25]--[2023-06-26 Mon 17:27] =>  00:99\n:END:"))
 	})
 })
@@ -1841,7 +1841,7 @@ var _ = Describe("Canonical writeHeading", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("# first\n# second"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("# first\nsecond"))
 	})
 })
@@ -1852,7 +1852,7 @@ var _ = Describe("Canonical writeCodeBlock", func() {
 		var normal, preserved strings.Builder
 		Expect(markdown.NewWriter(&normal, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(normal.String()).To(Equal("- ```\n  first\n\n  second\n  ```"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("- ```\n  first\n  \n  second\n  ```"))
 	})
 })
@@ -1864,7 +1864,7 @@ var _ = Describe("Edited writePriority", func() {
 		for _, value := range []content.Priority{content.PriorityB, content.PriorityC, content.PriorityNone} {
 			node.Priority = value
 			var actual strings.Builder
-			Expect(markdown.NewWriter(&actual).Write(node)).To(Succeed())
+			Expect(markdown.NewWriter(&actual, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 			expected := "[#B] "
 			if value == content.PriorityC {
 				expected = "[#C] "
@@ -1884,7 +1884,7 @@ var _ = Describe("Canonical writeTaskPriority", func() {
 		var canonical, preserved, edited strings.Builder
 		Expect(markdown.NewWriter(&canonical, markdown.WithStrictOutput()).Write(node)).To(Succeed())
 		Expect(canonical.String()).To(Equal("[#a]"))
-		Expect(markdown.NewWriter(&preserved).Write(node)).To(Succeed())
+		Expect(markdown.NewWriter(&preserved, markdown.WithPreservedOutput()).Write(node)).To(Succeed())
 		Expect(preserved.String()).To(Equal("[#a] "))
 		node.Priority = content.PriorityB
 		Expect(markdown.NewWriter(&edited, markdown.WithStrictOutput()).Write(node)).To(Succeed())

@@ -234,11 +234,15 @@ type outputOptions struct {
 func defaultOutputOptions() outputOptions {
 	return outputOptions{
 		logbookWithSeconds: true,
+		strict:             true,
 	}
 }
 
 // WithStrictOutput escapes literal Markdown and omits absent task priorities.
 func WithStrictOutput() Option { return func(o *outputOptions) { o.strict = true } }
+
+// WithPreservedOutput retains captured source formatting rather than normalizing it.
+func WithPreservedOutput() Option { return func(o *outputOptions) { o.strict = false } }
 
 // WithLogbookSeconds sets whether the times in logbook entries are written
 // with seconds, which is `:with-second-support?` of `:logbook/settings`.

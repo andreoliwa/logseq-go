@@ -41,7 +41,7 @@ var _ = Describe("Transaction", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		ctx := context.Background()
-		graph, err = logseq.Open(ctx, tempDir)
+		graph, err = logseq.Open(ctx, tempDir, logseq.WithPreserveOutput())
 		Expect(err).NotTo(HaveOccurred())
 	})
 

@@ -11,7 +11,7 @@ import (
 func parseAndOutput(input string) string {
 	block, err := markdown.ParseString(input)
 	Expect(err).ToNot(HaveOccurred())
-	v, err := markdown.AsString(block)
+	v, err := markdown.AsString(block, markdown.WithPreservedOutput())
 	Expect(err).ToNot(HaveOccurred())
 	return v
 }
@@ -240,7 +240,7 @@ var _ = Describe("Source parsing then outputting", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(outlined).To(BeTrue())
 		Expect(ranges).To(HaveLen(2))
-		output, err := markdown.AsString(block)
+		output, err := markdown.AsString(block, markdown.WithPreservedOutput())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(Equal(source))
 		Expect(parseAndOutput(source)).To(Equal(source))
@@ -251,7 +251,7 @@ var _ = Describe("Source parsing then outputting", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(outlined).To(BeTrue())
 		Expect(source[ranges[1].Start:ranges[1].End]).To(Equal("- 11h00 Later"))
-		output, err := markdown.AsString(block)
+		output, err := markdown.AsString(block, markdown.WithPreservedOutput())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(Equal(parseAndOutput(source)))
 	})
@@ -261,14 +261,14 @@ var _ = Describe("Positional priority round trips", func() {
 	It("keeps lowercase in both output modes and honors edited values", func() {
 		block, err := markdown.ParseString("TODO [#a] task")
 		Expect(err).NotTo(HaveOccurred())
-		for _, options := range [][]markdown.Option{nil, {markdown.WithStrictOutput()}} {
+		for _, options := range [][]markdown.Option{{markdown.WithPreservedOutput()}, {markdown.WithStrictOutput()}} {
 			var result strings.Builder
 			Expect(markdown.NewWriter(&result, options...).Write(block)).To(Succeed())
 			Expect(result.String()).To(Equal("TODO [#a] task"))
 		}
 		priority := block.FirstChild().(*content.Paragraph).Children()[1].(*content.TaskPriority)
 		priority.Priority = content.PriorityB
-		for _, options := range [][]markdown.Option{nil, {markdown.WithStrictOutput()}} {
+		for _, options := range [][]markdown.Option{{markdown.WithPreservedOutput()}, {markdown.WithStrictOutput()}} {
 			var result strings.Builder
 			Expect(markdown.NewWriter(&result, options...).Write(block)).To(Succeed())
 			Expect(result.String()).To(Equal("TODO [#B] task"))

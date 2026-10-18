@@ -20,10 +20,20 @@ func WriteMarkdown(node content.Node, w io.Writer) error {
 // MarkdownOption configures the additive serialization entry point.
 type MarkdownOption = markdown.Option
 
-// WithStrictOutput opts into stricter escaping of literal Markdown.
+// WithStrictOutput selects upstream formatting and disables preservation.
+// Deprecated: upstream formatting is the default.
 func WithStrictOutput() MarkdownOption { return markdown.WithStrictOutput() }
 
 // AsMarkdownWithOptions serializes with explicit formatting choices.
 func AsMarkdownWithOptions(node content.Node, opts ...MarkdownOption) (string, error) {
 	return markdown.AsString(node, opts...)
+}
+
+// WithPreservedMarkdown retains source formatting for one serialization call.
+func WithPreservedMarkdown() MarkdownOption { return markdown.WithPreservedOutput() }
+
+// WriteMarkdownWithOptions serializes with explicit formatting choices,
+// propagating errors from the destination writer.
+func WriteMarkdownWithOptions(node content.Node, w io.Writer, opts ...MarkdownOption) error {
+	return markdown.NewWriter(w, opts...).Write(node)
 }

@@ -73,8 +73,8 @@ func (g *Graph) AsString(node content.Node) (string, error) {
 // of the graph.
 func (g *Graph) markdownOptions() []markdown.Option {
 	opts := []markdown.Option{markdown.WithLogbookSeconds(g.config.Logbook.WithSecondSupport)}
-	if g.options.strictMarkdownOutput {
-		opts = append(opts, markdown.WithStrictOutput())
+	if g.options.preserveOutput {
+		opts = append(opts, markdown.WithPreservedOutput())
 	}
 	return opts
 }
